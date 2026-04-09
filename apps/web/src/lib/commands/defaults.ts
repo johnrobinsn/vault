@@ -2,6 +2,7 @@ import { commandRegistry } from './registry.js'
 import { vault } from '$lib/state/vault.svelte.js'
 import { tabs } from '$lib/state/tabs.svelte.js'
 import { ui } from '$lib/state/ui.svelte.js'
+import { exportVault, importVault } from '@vault/core'
 
 export function registerDefaultCommands() {
   commandRegistry.register({
@@ -69,6 +70,42 @@ export function registerDefaultCommands() {
     label: 'Command Palette',
     shortcut: 'Ctrl+P',
     execute: () => ui.toggleCommandPalette(),
+  })
+
+  commandRegistry.register({
+    id: 'vault:export',
+    label: 'Export Vault as ZIP',
+    execute: async () => {
+      const data = await exportVault(vault.service)
+      const blob = new Blob([data as BlobPart], { type: 'application/zip' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `vault-${new Date().toISOString().slice(0, 10)}.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+    },
+  })
+
+  commandRegistry.register({
+    id: 'vault:import',
+    label: 'Import Vault from ZIP',
+    execute: () => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = '.zip'
+      input.onchange = async () => {
+        const file = input.files?.[0]
+        if (!file) return
+        const data = new Uint8Array(await file.arrayBuffer())
+        const count = await importVault(vault.service, data)
+        tabs.closeAll()
+        await vault.refresh()
+        refreshNoteCommands()
+        alert(`Imported ${count} notes.`)
+      }
+      input.click()
+    },
   })
 
   // Quick switcher - open any note by name

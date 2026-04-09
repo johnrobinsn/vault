@@ -15,3 +15,4 @@ export { parseFrontmatter, extractTags, serializeFrontmatter } from './markdown/
 export type { ParsedFrontmatter } from './markdown/frontmatter.js'
 export { SearchEngine } from './search/search-engine.js'
 export type { SearchResult, SearchableNote } from './search/search-engine.js'
+export { exportVault, importVault } from './vault-io.js'

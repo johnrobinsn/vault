@@ -18,13 +18,14 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
+    "fflate": "^0.8.2",
     "gray-matter": "^4",
     "idb": "^8",
     "mitt": "^3"
   },
   "devDependencies": {
+    "fake-indexeddb": "^6",
     "typescript": "^5.7",
-    "vitest": "^3",
-    "fake-indexeddb": "^6"
+    "vitest": "^3"
   }
 }
