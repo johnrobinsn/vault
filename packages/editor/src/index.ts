@@ -1,1 +1,7 @@
 export { createEditor } from './create-editor.js'
+export type { CreateEditorOptions } from './create-editor.js'
+export { livePreview } from './live-preview/index.js'
+export { wikilinkDecoration } from './wikilink-decoration.js'
+export { wikilinkCompletion } from './autocomplete/wikilink-completion.js'
+export type { WikiLinkCompletionSource } from './autocomplete/wikilink-completion.js'
+export { vaultEditorTheme } from './theme.js'
