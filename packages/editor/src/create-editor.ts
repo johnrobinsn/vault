@@ -40,18 +40,42 @@ export function createEditor({
     }
   })
 
-  // Click handler for wiki-links
+  // Click handler for wiki-links (both widget and syntax-highlighted forms)
   const clickHandler = EditorView.domEventHandlers({
     click(event: MouseEvent, view: EditorView) {
       if (!onClickWikiLink) return false
       const target = event.target as HTMLElement
-      if (target.classList.contains('cm-wikilink') && (event.ctrlKey || event.metaKey)) {
+
+      // Click on rendered widget (cursor on different line)
+      if (target.classList.contains('cm-wikilink')) {
         const linkTarget = target.dataset.target
         if (linkTarget) {
+          event.preventDefault()
           onClickWikiLink(linkTarget)
           return true
         }
       }
+
+      // Ctrl/Cmd+Click on syntax-highlighted wiki-link text (cursor on same line)
+      if (event.ctrlKey || event.metaKey) {
+        const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+        if (pos !== null) {
+          const line = view.state.doc.lineAt(pos)
+          const lineText = line.text
+          const re = /\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]/g
+          let match: RegExpExecArray | null
+          while ((match = re.exec(lineText)) !== null) {
+            const linkStart = line.from + match.index
+            const linkEnd = linkStart + match[0].length
+            if (pos >= linkStart && pos <= linkEnd) {
+              event.preventDefault()
+              onClickWikiLink(match[1].trim())
+              return true
+            }
+          }
+        }
+      }
+
       return false
     },
   })
