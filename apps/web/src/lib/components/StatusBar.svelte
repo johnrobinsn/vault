@@ -23,7 +23,11 @@
       {ui.theme === 'dark' ? '☀' : '☾'}
     </button>
     <span class="note-count">{noteCount} notes</span>
-    <span class="folder-name" title={vault.mode === 'fs' ? 'Local folder' : 'Browser storage'}>{vault.folderName}</span>
+    {#if vault.activeVault}
+      <button class="vault-switch" onclick={() => vault.switchVault()} title="Switch vault">
+        {vault.activeVault.name}
+      </button>
+    {/if}
   </span>
 </div>
 
@@ -69,9 +73,19 @@
     color: var(--vault-text-primary);
   }
 
-  .folder-name {
+  .vault-switch {
+    border: none;
+    background: transparent;
     color: var(--vault-text-muted);
+    cursor: pointer;
+    font-size: 11px;
+    padding: 0 4px;
     border-left: 1px solid var(--vault-border);
     padding-left: 8px;
+    font-family: inherit;
+  }
+
+  .vault-switch:hover {
+    color: var(--vault-text-primary);
   }
 </style>

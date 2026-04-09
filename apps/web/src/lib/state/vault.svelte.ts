@@ -1,15 +1,4 @@
-import {
-  VaultService,
-  type NoteMetadata,
-  type VaultStorage,
-  IDBStorage,
-  FSAccessStorage,
-  hasFileSystemAccess,
-  loadDirectoryHandle,
-  saveDirectoryHandle,
-  clearDirectoryHandle,
-  requestPermission,
-} from '@vault/core'
+import { VaultService, type NoteMetadata, APIStorage } from '@vault/core'
 
 export interface FileTreeNode {
   name: string
@@ -19,7 +8,11 @@ export interface FileTreeNode {
   expanded: boolean
 }
 
-export type VaultMode = 'none' | 'fs' | 'idb'
+export interface VaultInfo {
+  id: string
+  name: string
+  path: string
+}
 
 class VaultState {
   service!: VaultService
@@ -27,10 +20,16 @@ class VaultState {
   folders = $state<string[]>([])
   tree = $derived<FileTreeNode[]>(buildTree(this.notes, this.folders))
   initialized = $state(false)
-  mode = $state<VaultMode>('none')
-  folderName = $state<string>('')
-  /** True if the File System Access API is available in this browser */
-  fsAccessSupported = hasFileSystemAccess()
+  /** List of configured vaults from the server */
+  vaults = $state<VaultInfo[]>([])
+  /** Currently active vault */
+  activeVault = $state<VaultInfo | null>(null)
+  /** True if the backend server is reachable */
+  serverReachable = $state(false)
+  /** True during initial loading */
+  loading = $state(true)
+
+  private storage = new APIStorage('/api')
 
   private wireEvents() {
     this.service.events.on('note:created', () => this.refresh())
@@ -42,88 +41,94 @@ class VaultState {
     this.service.events.on('vault:cleared', () => this.refresh())
   }
 
-  private initService(storage: VaultStorage) {
-    this.service = new VaultService(storage)
-    this.wireEvents()
-  }
-
   /**
-   * Try to reconnect to a previously opened folder.
-   * Returns true if successful, false if the user needs to pick a folder.
+   * Initialize: check server, load vault list, auto-open active vault.
    */
-  async tryReconnect(): Promise<boolean> {
-    if (!this.fsAccessSupported) return false
-
-    const handle = await loadDirectoryHandle()
-    if (!handle) return false
-
-    const granted = await requestPermission(handle)
-    if (!granted) return false
-
-    this.initService(new FSAccessStorage(handle))
-    this.folderName = handle.name
-    this.mode = 'fs'
-    await this.refresh()
-    this.initialized = true
-    return true
-  }
-
-  /**
-   * Open a folder picker and use the selected folder as the vault.
-   */
-  async openFolder(): Promise<void> {
-    const handle = await window.showDirectoryPicker({ mode: 'readwrite', id: 'vault' })
-    await saveDirectoryHandle(handle)
-
-    this.initService(new FSAccessStorage(handle))
-    this.folderName = handle.name
-    this.mode = 'fs'
-    await this.refresh()
-    this.initialized = true
-  }
-
-  /**
-   * Fall back to IndexedDB storage (for unsupported browsers or user choice).
-   */
-  async useIndexedDB(): Promise<void> {
-    this.initService(new IDBStorage())
-    this.mode = 'idb'
-    this.folderName = 'Browser Storage'
-
-    const allNotes = await this.service.getAllNotes()
-    if (allNotes.length === 0) {
-      await this.service.createNote(
-        'Welcome.md',
-        `# Welcome to Vault
-
-Vault is a markdown editor for connected notes.
-
-## Getting Started
-
-- Create a new note with **Ctrl+N**
-- Link notes with \`[[wiki-links]]\`
-- Search with **Ctrl+Shift+F**
-- Command palette with **Ctrl+P**
-
-Happy writing!
-`,
-      )
+  async init() {
+    try {
+      const res = await fetch('/api/health')
+      this.serverReachable = res.ok
+    } catch {
+      this.serverReachable = false
+      this.loading = false
+      return
     }
 
+    await this.loadVaults()
+
+    // Auto-open active vault if one is set
+    if (this.activeVault) {
+      this.service = new VaultService(this.storage)
+      this.wireEvents()
+      await this.refresh()
+      this.initialized = true
+    }
+
+    this.loading = false
+  }
+
+  async loadVaults() {
+    try {
+      const res = await fetch('/api/vaults')
+      const data = await res.json()
+      this.vaults = data.vaults ?? []
+      const activeId = data.activeVault
+      this.activeVault = this.vaults.find((v) => v.id === activeId) ?? null
+    } catch {
+      this.vaults = []
+      this.activeVault = null
+    }
+  }
+
+  /**
+   * Open an existing configured vault by ID.
+   */
+  async openVault(id: string) {
+    await fetch(`/api/vaults/${id}/open`, { method: 'POST' })
+    await this.loadVaults()
+    this.service = new VaultService(this.storage)
+    this.wireEvents()
     await this.refresh()
     this.initialized = true
   }
 
   /**
-   * Disconnect from the current vault and return to the picker screen.
+   * Create a new vault and open it.
    */
-  async disconnect(): Promise<void> {
-    await clearDirectoryHandle()
+  async createVault(name: string, path: string) {
+    const res = await fetch('/api/vaults', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, path }),
+    })
+    const entry: VaultInfo = await res.json()
+    await this.openVault(entry.id)
+  }
+
+  /**
+   * Remove a vault from the config (does NOT delete files).
+   */
+  async removeVault(id: string) {
+    await fetch(`/api/vaults/${id}`, { method: 'DELETE' })
+    if (this.activeVault?.id === id) {
+      this.initialized = false
+      this.notes = []
+      this.folders = []
+    }
+    await this.loadVaults()
+    // If there's a new active vault, open it
+    if (this.activeVault && !this.initialized) {
+      await this.openVault(this.activeVault.id)
+    }
+  }
+
+  /**
+   * Switch back to the vault picker screen.
+   */
+  switchVault() {
     this.initialized = false
-    this.mode = 'none'
     this.notes = []
     this.folders = []
-    this.folderName = ''
   }
 
   async refresh() {

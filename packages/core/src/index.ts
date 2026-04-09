@@ -17,6 +17,7 @@ export { SearchEngine } from './search/search-engine.js'
 export type { SearchResult, SearchableNote } from './search/search-engine.js'
 export { exportVault, importVault } from './vault-io.js'
 export { FSAccessStorage } from './storage/fs-access-storage.js'
+export { APIStorage } from './storage/api-storage.js'
 export {
   saveDirectoryHandle,
   loadDirectoryHandle,

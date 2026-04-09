@@ -12,15 +12,15 @@
   import { registerDefaultCommands, refreshNoteCommands } from '$lib/commands/defaults.js'
 
   let resizing = $state(false)
-  let loading = $state(true)
+  let newVaultName = $state('')
+  let newVaultPath = $state('')
+  let showCreateForm = $state(false)
 
   onMount(async () => {
-    // Try to reconnect to a previously opened folder
-    const reconnected = await vault.tryReconnect()
-    if (reconnected) {
+    await vault.init()
+    if (vault.initialized) {
       onVaultReady()
     }
-    loading = false
   })
 
   function onVaultReady() {
@@ -34,18 +34,17 @@
     vault.service.events.on('note:renamed', refreshNoteCommands)
   }
 
-  async function handleOpenFolder() {
-    try {
-      await vault.openFolder()
-      onVaultReady()
-    } catch (e: unknown) {
-      if (e instanceof Error && e.name === 'AbortError') return // user cancelled
-      console.error('Failed to open folder:', e)
-    }
+  async function handleOpenVault(id: string) {
+    await vault.openVault(id)
+    onVaultReady()
   }
 
-  async function handleUseBrowser() {
-    await vault.useIndexedDB()
+  async function handleCreateVault() {
+    if (!newVaultName.trim() || !newVaultPath.trim()) return
+    await vault.createVault(newVaultName.trim(), newVaultPath.trim())
+    newVaultName = ''
+    newVaultPath = ''
+    showCreateForm = false
     onVaultReady()
   }
 
@@ -81,17 +80,12 @@
   function startResize(e: MouseEvent) {
     e.preventDefault()
     resizing = true
-
-    function onMouseMove(e: MouseEvent) {
-      ui.setSidebarWidth(e.clientX)
-    }
-
+    function onMouseMove(e: MouseEvent) { ui.setSidebarWidth(e.clientX) }
     function onMouseUp() {
       resizing = false
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', onMouseUp)
     }
-
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
   }
@@ -99,39 +93,62 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-{#if loading}
+{#if vault.loading}
   <div class="loading">
-    <p>Loading vault...</p>
+    <p>Loading...</p>
+  </div>
+{:else if !vault.serverReachable}
+  <div class="landing">
+    <div class="landing-card">
+      <h1 class="landing-logo">Vault</h1>
+      <p class="landing-tagline">Cannot reach the backend server</p>
+      <p class="landing-hint">Start the server with <code>pnpm dev</code> from the project root.</p>
+    </div>
   </div>
 {:else if !vault.initialized}
-  <!-- Open Folder landing screen -->
+  <!-- Vault picker / management screen -->
   <div class="landing">
     <div class="landing-card">
       <h1 class="landing-logo">Vault</h1>
       <p class="landing-tagline">A markdown editor for connected notes</p>
 
-      <div class="landing-actions">
-        {#if vault.fsAccessSupported}
-          <button class="btn-primary" onclick={handleOpenFolder}>
-            Open Folder
-          </button>
-          <p class="landing-hint">
-            Choose a folder on your machine. Notes are stored as plain .md files.
-          </p>
-        {/if}
+      {#if vault.vaults.length > 0}
+        <div class="vault-list">
+          <h2 class="section-title">Your Vaults</h2>
+          {#each vault.vaults as v (v.id)}
+            <button class="vault-item" onclick={() => handleOpenVault(v.id)}>
+              <span class="vault-name">{v.name}</span>
+              <span class="vault-path">{v.path}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
 
-        <button class="btn-secondary" onclick={handleUseBrowser}>
-          {vault.fsAccessSupported ? 'Use Browser Storage' : 'Get Started'}
-        </button>
-        {#if vault.fsAccessSupported}
-          <p class="landing-hint muted">
-            Notes stored in browser only (IndexedDB). Won't be accessible as files.
-          </p>
+      <div class="landing-actions">
+        {#if showCreateForm}
+          <div class="create-form">
+            <h2 class="section-title">New Vault</h2>
+            <input
+              class="input"
+              bind:value={newVaultName}
+              placeholder="Vault name"
+              onkeydown={(e) => { if (e.key === 'Enter') handleCreateVault() }}
+            />
+            <input
+              class="input"
+              bind:value={newVaultPath}
+              placeholder="Folder path (e.g. ~/notes)"
+              onkeydown={(e) => { if (e.key === 'Enter') handleCreateVault() }}
+            />
+            <div class="form-buttons">
+              <button class="btn-primary" onclick={handleCreateVault}>Create</button>
+              <button class="btn-secondary" onclick={() => (showCreateForm = false)}>Cancel</button>
+            </div>
+          </div>
         {:else}
-          <p class="landing-hint muted">
-            Your browser doesn't support the File System Access API.
-            Notes will be stored in browser storage (IndexedDB).
-          </p>
+          <button class="btn-primary" onclick={() => (showCreateForm = true)}>
+            Create New Vault
+          </button>
         {/if}
       </div>
     </div>
@@ -141,7 +158,7 @@
     {#if ui.sidebarVisible}
       <aside class="sidebar" style="width: {ui.sidebarWidth}px">
         <div class="sidebar-header">
-          <h1 class="logo">Vault</h1>
+          <h1 class="logo">{vault.activeVault?.name ?? 'Vault'}</h1>
           <button class="new-note-btn" onclick={() => vault.createNote().then((m) => tabs.open(m.path))} title="New note (Ctrl+N)">
             +
           </button>
@@ -198,7 +215,8 @@
 
   .landing-card {
     text-align: center;
-    max-width: 400px;
+    max-width: 440px;
+    width: 100%;
     padding: 48px 32px;
   }
 
@@ -213,24 +231,111 @@
   .landing-tagline {
     color: var(--vault-text-secondary);
     font-size: 15px;
-    margin: 0 0 40px;
+    margin: 0 0 32px;
+  }
+
+  .landing-hint {
+    color: var(--vault-text-muted);
+    font-size: 13px;
+    margin: 8px 0;
+  }
+
+  .landing-hint code {
+    background: var(--vault-bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+
+  .section-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--vault-text-muted);
+    margin: 0 0 8px;
+  }
+
+  .vault-list {
+    margin-bottom: 24px;
+    text-align: left;
+  }
+
+  .vault-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--vault-border);
+    border-radius: 8px;
+    background: var(--vault-bg-secondary);
+    color: var(--vault-text-primary);
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    margin-bottom: 6px;
+    transition: all 0.15s;
+  }
+
+  .vault-item:hover {
+    border-color: var(--vault-accent);
+    background: var(--vault-bg-tertiary);
+  }
+
+  .vault-name {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .vault-path {
+    font-size: 11px;
+    color: var(--vault-text-muted);
   }
 
   .landing-actions {
     display: flex;
     flex-direction: column;
-    align-items: center;
     gap: 12px;
   }
 
-  .btn-primary {
+  .create-form {
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .input {
     width: 100%;
-    padding: 12px 24px;
+    padding: 10px 12px;
+    border: 1px solid var(--vault-border);
+    border-radius: 6px;
+    background: var(--vault-bg-secondary);
+    color: var(--vault-text-primary);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+  }
+
+  .input:focus {
+    border-color: var(--vault-accent);
+  }
+
+  .form-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .btn-primary {
+    flex: 1;
+    padding: 10px 24px;
     border: none;
     border-radius: 8px;
     background: var(--vault-accent);
     color: #fff;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
@@ -242,7 +347,7 @@
   }
 
   .btn-secondary {
-    width: 100%;
+    flex: 1;
     padding: 10px 24px;
     border: 1px solid var(--vault-border);
     border-radius: 8px;
@@ -257,17 +362,6 @@
   .btn-secondary:hover {
     border-color: var(--vault-text-muted);
     color: var(--vault-text-primary);
-  }
-
-  .landing-hint {
-    font-size: 12px;
-    color: var(--vault-text-secondary);
-    margin: 0 0 8px;
-    line-height: 1.4;
-  }
-
-  .landing-hint.muted {
-    color: var(--vault-text-muted);
   }
 
   .app-shell {
@@ -306,6 +400,9 @@
     margin: 0;
     color: var(--vault-accent);
     letter-spacing: 0.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .new-note-btn {
@@ -320,6 +417,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
   }
 
   .new-note-btn:hover {
