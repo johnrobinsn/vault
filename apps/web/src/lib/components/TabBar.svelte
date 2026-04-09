@@ -1,0 +1,119 @@
+<script lang="ts">
+  import { tabs, type Tab } from '$lib/state/tabs.svelte.js'
+
+  function handleClose(e: MouseEvent, tab: Tab) {
+    e.stopPropagation()
+    tabs.close(tab.id)
+  }
+
+  function handleClick(tab: Tab) {
+    tabs.activate(tab.id)
+  }
+
+  function handleMiddleClick(e: MouseEvent, tab: Tab) {
+    if (e.button === 1) {
+      e.preventDefault()
+      tabs.close(tab.id)
+    }
+  }
+</script>
+
+<div class="tabbar">
+  {#each tabs.tabs as tab (tab.id)}
+    <div
+      class="tab"
+      class:active={tab.id === tabs.activeId}
+      role="tab"
+      tabindex="0"
+      aria-selected={tab.id === tabs.activeId}
+      onclick={() => handleClick(tab)}
+      onauxclick={(e) => handleMiddleClick(e, tab)}
+      onkeydown={(e) => { if (e.key === 'Enter') handleClick(tab) }}
+    >
+      <span class="tab-title">
+        {#if tab.dirty}<span class="dirty-dot"></span>{/if}
+        {tab.title}
+      </span>
+      <button class="tab-close" onclick={(e) => handleClose(e, tab)} title="Close">
+        &times;
+      </button>
+    </div>
+  {/each}
+</div>
+
+<style>
+  .tabbar {
+    display: flex;
+    align-items: stretch;
+    height: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 0;
+    padding: 0 4px;
+  }
+
+  .tabbar::-webkit-scrollbar {
+    height: 2px;
+  }
+
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    border: none;
+    background: transparent;
+    color: var(--vault-text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: all 0.1s;
+    font-family: inherit;
+  }
+
+  .tab:hover {
+    color: var(--vault-text-primary);
+    background: var(--vault-bg-tertiary);
+  }
+
+  .tab.active {
+    color: var(--vault-text-primary);
+    border-bottom-color: var(--vault-accent);
+  }
+
+  .tab-title {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .dirty-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: var(--vault-accent);
+    border-radius: 50%;
+  }
+
+  .tab-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border: none;
+    background: transparent;
+    color: var(--vault-text-muted);
+    cursor: pointer;
+    border-radius: 3px;
+    font-size: 14px;
+    padding: 0;
+    font-family: inherit;
+  }
+
+  .tab-close:hover {
+    background: var(--vault-bg-primary);
+    color: var(--vault-text-primary);
+  }
+</style>

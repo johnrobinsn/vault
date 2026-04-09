@@ -15,13 +15,14 @@
     "@vault/editor": "workspace:*"
   },
   "devDependencies": {
+    "@codemirror/view": "^6.41.0",
     "@sveltejs/adapter-static": "^3",
     "@sveltejs/kit": "^2",
     "@sveltejs/vite-plugin-svelte": "^5",
+    "@tailwindcss/vite": "^4",
     "svelte": "^5",
     "svelte-check": "^4",
     "tailwindcss": "^4",
-    "@tailwindcss/vite": "^4",
     "typescript": "^5.7",
     "vite": "^6",
     "vitest": "^3"
