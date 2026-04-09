@@ -119,6 +119,34 @@ export function vaultEditorTheme(): Extension {
       color: 'var(--vault-link)',
     },
 
+    // Autocomplete dropdown
+    '.cm-tooltip-autocomplete': {
+      backgroundColor: 'var(--vault-bg-secondary)',
+      border: '1px solid var(--vault-border)',
+      borderRadius: '6px',
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+    },
+    '.cm-tooltip-autocomplete ul li': {
+      color: 'var(--vault-text-primary)',
+      padding: '4px 8px',
+    },
+    '.cm-tooltip-autocomplete ul li[aria-selected]': {
+      backgroundColor: 'var(--vault-accent)',
+      color: '#fff',
+    },
+    '.cm-tooltip-autocomplete .cm-completionLabel': {
+      color: 'inherit',
+    },
+    '.cm-tooltip-autocomplete .cm-completionDetail': {
+      color: 'var(--vault-text-muted)',
+      fontStyle: 'italic',
+    },
+    '.cm-tooltip': {
+      backgroundColor: 'var(--vault-bg-secondary)',
+      border: '1px solid var(--vault-border)',
+      color: 'var(--vault-text-primary)',
+    },
+
     // Horizontal rule
     '.cm-hr-line': {
       borderBottom: '2px solid var(--vault-border)',
