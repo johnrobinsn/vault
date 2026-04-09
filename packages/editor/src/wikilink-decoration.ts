@@ -10,6 +10,14 @@ import { type Extension } from '@codemirror/state'
 
 const WIKILINK_RE = /\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]/g
 
+/** Callback set by the editor factory for handling wiki-link clicks */
+let onWikiLinkClick: ((target: string) => void) | null = null
+
+/** Called by createEditor to register the click handler */
+export function setWikiLinkClickHandler(handler: ((target: string) => void) | null) {
+  onWikiLinkClick = handler
+}
+
 class WikiLinkWidget extends WidgetType {
   constructor(
     readonly display: string,
@@ -24,6 +32,14 @@ class WikiLinkWidget extends WidgetType {
     span.textContent = this.display
     span.dataset.target = this.target
     span.title = this.target
+    span.addEventListener('mousedown', (e) => {
+      // mousedown instead of click — fires before CM6 moves the cursor
+      e.preventDefault()
+      e.stopPropagation()
+      if (onWikiLinkClick) {
+        onWikiLinkClick(this.target)
+      }
+    })
     return span
   }
 

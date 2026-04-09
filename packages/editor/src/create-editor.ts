@@ -10,7 +10,7 @@ import {
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { livePreview } from './live-preview/index.js'
-import { wikilinkDecoration } from './wikilink-decoration.js'
+import { wikilinkDecoration, setWikiLinkClickHandler } from './wikilink-decoration.js'
 import { vaultEditorTheme } from './theme.js'
 import {
   wikilinkCompletion,
@@ -34,6 +34,9 @@ export function createEditor({
   completionSource,
   extensions: extraExtensions = [],
 }: CreateEditorOptions): EditorView {
+  // Register wiki-link click handler for widget mousedown events
+  setWikiLinkClickHandler(onClickWikiLink ?? null)
+
   const updateListener = EditorView.updateListener.of((update) => {
     if (update.docChanged && onChange) {
       onChange(update.state.doc.toString())
