@@ -67,12 +67,12 @@
   })
 
   onDestroy(() => {
-    if (saveTimeout) clearTimeout(saveTimeout)
+    if (saveTimeout) {
+      // A debounced save is pending — cancel it and save immediately
+      clearTimeout(saveTimeout)
+      vault.saveNote(path, currentContent)
+    }
     if (editor) {
-      // Save any pending changes
-      if (currentContent) {
-        vault.saveNote(path, currentContent)
-      }
       editor.destroy()
     }
   })

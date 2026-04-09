@@ -56,6 +56,11 @@ export function createEditor({
     },
   })
 
+  // Override closeBrackets to not auto-close [ (interferes with [[ wiki-links)
+  const closeBracketsConfig = EditorState.languageData.of(() => [
+    { closeBrackets: { brackets: ['(', '{', "'", '"'] } },
+  ])
+
   const baseExtensions: Extension[] = [
     vaultEditorTheme(),
     history(),
@@ -63,6 +68,7 @@ export function createEditor({
     highlightActiveLine(),
     highlightSelectionMatches(),
     bracketMatching(),
+    closeBracketsConfig,
     closeBrackets(),
     keymap.of([
       ...defaultKeymap,

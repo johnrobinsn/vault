@@ -55,7 +55,12 @@ export function wikilinkDecoration(): Extension {
       build(view: EditorView): DecorationSet {
         const decorations: import('@codemirror/state').Range<Decoration>[] = []
         const { state } = view
-        const cursorLine = state.doc.lineAt(state.selection.main.head).number
+
+        // Collect all cursor line numbers for multi-cursor support
+        const cursorLines = new Set<number>()
+        for (const range of state.selection.ranges) {
+          cursorLines.add(state.doc.lineAt(range.head).number)
+        }
 
         for (const { from, to } of view.visibleRanges) {
           const text = state.doc.sliceString(from, to)
@@ -69,7 +74,7 @@ export function wikilinkDecoration(): Extension {
             const display = match[2]?.trim() ?? target
             const matchLine = state.doc.lineAt(start).number
 
-            if (matchLine !== cursorLine) {
+            if (!cursorLines.has(matchLine)) {
               // Replace with widget when cursor is not on this line
               decorations.push(
                 Decoration.replace({
