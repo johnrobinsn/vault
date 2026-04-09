@@ -23,6 +23,7 @@
       {ui.theme === 'dark' ? '☀' : '☾'}
     </button>
     <span class="note-count">{noteCount} notes</span>
+    <span class="folder-name" title={vault.mode === 'fs' ? 'Local folder' : 'Browser storage'}>{vault.folderName}</span>
   </span>
 </div>
 
@@ -66,5 +67,11 @@
 
   .theme-toggle:hover {
     color: var(--vault-text-primary);
+  }
+
+  .folder-name {
+    color: var(--vault-text-muted);
+    border-left: 1px solid var(--vault-border);
+    padding-left: 8px;
   }
 </style>

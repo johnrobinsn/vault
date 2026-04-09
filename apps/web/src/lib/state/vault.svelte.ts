@@ -1,4 +1,15 @@
-import { VaultService, type NoteMetadata, IDBStorage } from '@vault/core'
+import {
+  VaultService,
+  type NoteMetadata,
+  type VaultStorage,
+  IDBStorage,
+  FSAccessStorage,
+  hasFileSystemAccess,
+  loadDirectoryHandle,
+  saveDirectoryHandle,
+  clearDirectoryHandle,
+  requestPermission,
+} from '@vault/core'
 
 export interface FileTreeNode {
   name: string
@@ -8,17 +19,20 @@ export interface FileTreeNode {
   expanded: boolean
 }
 
+export type VaultMode = 'none' | 'fs' | 'idb'
+
 class VaultState {
-  service: VaultService
+  service!: VaultService
   notes = $state<NoteMetadata[]>([])
   folders = $state<string[]>([])
   tree = $derived<FileTreeNode[]>(buildTree(this.notes, this.folders))
   initialized = $state(false)
+  mode = $state<VaultMode>('none')
+  folderName = $state<string>('')
+  /** True if the File System Access API is available in this browser */
+  fsAccessSupported = hasFileSystemAccess()
 
-  constructor() {
-    this.service = new VaultService(new IDBStorage())
-
-    // Listen for changes and refresh
+  private wireEvents() {
     this.service.events.on('note:created', () => this.refresh())
     this.service.events.on('note:saved', () => this.refresh())
     this.service.events.on('note:deleted', () => this.refresh())
@@ -28,12 +42,56 @@ class VaultState {
     this.service.events.on('vault:cleared', () => this.refresh())
   }
 
-  async init() {
-    if (this.initialized) return
+  private initService(storage: VaultStorage) {
+    this.service = new VaultService(storage)
+    this.wireEvents()
+  }
+
+  /**
+   * Try to reconnect to a previously opened folder.
+   * Returns true if successful, false if the user needs to pick a folder.
+   */
+  async tryReconnect(): Promise<boolean> {
+    if (!this.fsAccessSupported) return false
+
+    const handle = await loadDirectoryHandle()
+    if (!handle) return false
+
+    const granted = await requestPermission(handle)
+    if (!granted) return false
+
+    this.initService(new FSAccessStorage(handle))
+    this.folderName = handle.name
+    this.mode = 'fs'
+    await this.refresh()
+    this.initialized = true
+    return true
+  }
+
+  /**
+   * Open a folder picker and use the selected folder as the vault.
+   */
+  async openFolder(): Promise<void> {
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite', id: 'vault' })
+    await saveDirectoryHandle(handle)
+
+    this.initService(new FSAccessStorage(handle))
+    this.folderName = handle.name
+    this.mode = 'fs'
+    await this.refresh()
+    this.initialized = true
+  }
+
+  /**
+   * Fall back to IndexedDB storage (for unsupported browsers or user choice).
+   */
+  async useIndexedDB(): Promise<void> {
+    this.initService(new IDBStorage())
+    this.mode = 'idb'
+    this.folderName = 'Browser Storage'
 
     const allNotes = await this.service.getAllNotes()
     if (allNotes.length === 0) {
-      // First-time setup: create welcome note
       await this.service.createNote(
         'Welcome.md',
         `# Welcome to Vault
@@ -56,6 +114,18 @@ Happy writing!
     this.initialized = true
   }
 
+  /**
+   * Disconnect from the current vault and return to the picker screen.
+   */
+  async disconnect(): Promise<void> {
+    await clearDirectoryHandle()
+    this.initialized = false
+    this.mode = 'none'
+    this.notes = []
+    this.folders = []
+    this.folderName = ''
+  }
+
   async refresh() {
     this.notes = await this.service.getAllNotes()
     this.folders = await this.service.listFolders()
@@ -69,7 +139,6 @@ Happy writing!
 
   async createFolder(parentFolder?: string): Promise<void> {
     const basePath = parentFolder ? `${parentFolder}/New Folder` : 'New Folder'
-    // Generate unique folder name
     const existing = await this.service.listFolders()
     let path = basePath
     let counter = 1
@@ -112,7 +181,6 @@ Happy writing!
 function buildTree(notes: NoteMetadata[], folders: string[]): FileTreeNode[] {
   const folderNodes = new Map<string, FileTreeNode>()
 
-  // Create folder nodes
   for (const f of folders) {
     if (f === '.trash') continue
     const parts = f.split('/')
@@ -126,7 +194,6 @@ function buildTree(notes: NoteMetadata[], folders: string[]): FileTreeNode[] {
     })
   }
 
-  // Nest folders
   for (const [path, node] of folderNodes) {
     const parentIdx = path.lastIndexOf('/')
     if (parentIdx > 0) {
@@ -138,7 +205,6 @@ function buildTree(notes: NoteMetadata[], folders: string[]): FileTreeNode[] {
     }
   }
 
-  // Create file nodes and add to their parent folders
   const rootNodes: FileTreeNode[] = []
   for (const note of notes) {
     const node: FileTreeNode = {
@@ -163,14 +229,12 @@ function buildTree(notes: NoteMetadata[], folders: string[]): FileTreeNode[] {
     }
   }
 
-  // Add top-level folders to root
   for (const [path, node] of folderNodes) {
     if (!path.includes('/')) {
       rootNodes.push(node)
     }
   }
 
-  // Sort: folders first, then alphabetically
   return sortNodes(rootNodes)
 }
 
@@ -187,5 +251,4 @@ function sortNodes(nodes: FileTreeNode[]): FileTreeNode[] {
   return nodes
 }
 
-// Singleton instance
 export const vault = new VaultState()

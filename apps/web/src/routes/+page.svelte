@@ -12,24 +12,45 @@
   import { registerDefaultCommands, refreshNoteCommands } from '$lib/commands/defaults.js'
 
   let resizing = $state(false)
+  let loading = $state(true)
 
   onMount(async () => {
-    await vault.init()
+    // Try to reconnect to a previously opened folder
+    const reconnected = await vault.tryReconnect()
+    if (reconnected) {
+      onVaultReady()
+    }
+    loading = false
+  })
+
+  function onVaultReady() {
     registerDefaultCommands()
     tabs.restore()
-
-    // Open welcome note if no tabs
     if (tabs.tabs.length === 0 && vault.notes.length > 0) {
       tabs.open(vault.notes[0].path)
     }
-
-    // Refresh note commands when vault changes
     vault.service.events.on('note:created', refreshNoteCommands)
     vault.service.events.on('note:deleted', refreshNoteCommands)
     vault.service.events.on('note:renamed', refreshNoteCommands)
-  })
+  }
+
+  async function handleOpenFolder() {
+    try {
+      await vault.openFolder()
+      onVaultReady()
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name === 'AbortError') return // user cancelled
+      console.error('Failed to open folder:', e)
+    }
+  }
+
+  async function handleUseBrowser() {
+    await vault.useIndexedDB()
+    onVaultReady()
+  }
 
   function handleKeydown(e: KeyboardEvent) {
+    if (!vault.initialized) return
     const mod = e.ctrlKey || e.metaKey
 
     if (mod && e.key === 'n') {
@@ -78,9 +99,42 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-{#if !vault.initialized}
+{#if loading}
   <div class="loading">
     <p>Loading vault...</p>
+  </div>
+{:else if !vault.initialized}
+  <!-- Open Folder landing screen -->
+  <div class="landing">
+    <div class="landing-card">
+      <h1 class="landing-logo">Vault</h1>
+      <p class="landing-tagline">A markdown editor for connected notes</p>
+
+      <div class="landing-actions">
+        {#if vault.fsAccessSupported}
+          <button class="btn-primary" onclick={handleOpenFolder}>
+            Open Folder
+          </button>
+          <p class="landing-hint">
+            Choose a folder on your machine. Notes are stored as plain .md files.
+          </p>
+        {/if}
+
+        <button class="btn-secondary" onclick={handleUseBrowser}>
+          {vault.fsAccessSupported ? 'Use Browser Storage' : 'Get Started'}
+        </button>
+        {#if vault.fsAccessSupported}
+          <p class="landing-hint muted">
+            Notes stored in browser only (IndexedDB). Won't be accessible as files.
+          </p>
+        {:else}
+          <p class="landing-hint muted">
+            Your browser doesn't support the File System Access API.
+            Notes will be stored in browser storage (IndexedDB).
+          </p>
+        {/if}
+      </div>
+    </div>
   </div>
 {:else}
   <div class="app-shell" class:resizing>
@@ -131,6 +185,88 @@
     align-items: center;
     justify-content: center;
     height: 100vh;
+    color: var(--vault-text-muted);
+  }
+
+  .landing {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: var(--vault-bg-primary);
+  }
+
+  .landing-card {
+    text-align: center;
+    max-width: 400px;
+    padding: 48px 32px;
+  }
+
+  .landing-logo {
+    font-size: 36px;
+    font-weight: 800;
+    color: var(--vault-accent);
+    margin: 0 0 8px;
+    letter-spacing: 1px;
+  }
+
+  .landing-tagline {
+    color: var(--vault-text-secondary);
+    font-size: 15px;
+    margin: 0 0 40px;
+  }
+
+  .landing-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .btn-primary {
+    width: 100%;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    background: var(--vault-accent);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+  }
+
+  .btn-primary:hover {
+    background: var(--vault-accent-hover);
+  }
+
+  .btn-secondary {
+    width: 100%;
+    padding: 10px 24px;
+    border: 1px solid var(--vault-border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--vault-text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--vault-text-muted);
+    color: var(--vault-text-primary);
+  }
+
+  .landing-hint {
+    font-size: 12px;
+    color: var(--vault-text-secondary);
+    margin: 0 0 8px;
+    line-height: 1.4;
+  }
+
+  .landing-hint.muted {
     color: var(--vault-text-muted);
   }
 

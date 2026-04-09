@@ -16,3 +16,11 @@ export type { ParsedFrontmatter } from './markdown/frontmatter.js'
 export { SearchEngine } from './search/search-engine.js'
 export type { SearchResult, SearchableNote } from './search/search-engine.js'
 export { exportVault, importVault } from './vault-io.js'
+export { FSAccessStorage } from './storage/fs-access-storage.js'
+export {
+  saveDirectoryHandle,
+  loadDirectoryHandle,
+  clearDirectoryHandle,
+  hasFileSystemAccess,
+  requestPermission,
+} from './storage/handle-store.js'
