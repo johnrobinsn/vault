@@ -7,17 +7,26 @@
   import TabBar from '$lib/components/TabBar.svelte'
   import EditorPane from '$lib/components/EditorPane.svelte'
   import StatusBar from '$lib/components/StatusBar.svelte'
+  import SearchPanel from '$lib/components/SearchPanel.svelte'
+  import CommandPalette from '$lib/components/CommandPalette.svelte'
+  import { registerDefaultCommands, refreshNoteCommands } from '$lib/commands/defaults.js'
 
   let resizing = $state(false)
 
   onMount(async () => {
     await vault.init()
+    registerDefaultCommands()
     tabs.restore()
 
     // Open welcome note if no tabs
     if (tabs.tabs.length === 0 && vault.notes.length > 0) {
       tabs.open(vault.notes[0].path)
     }
+
+    // Refresh note commands when vault changes
+    vault.service.events.on('note:created', refreshNoteCommands)
+    vault.service.events.on('note:deleted', refreshNoteCommands)
+    vault.service.events.on('note:renamed', refreshNoteCommands)
   })
 
   function handleKeydown(e: KeyboardEvent) {
@@ -110,6 +119,9 @@
         <StatusBar />
       </div>
     </main>
+
+    <SearchPanel />
+    <CommandPalette />
   </div>
 {/if}
 

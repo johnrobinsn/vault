@@ -13,3 +13,5 @@ export {
 export type { WikiLink } from './markdown/wikilinks.js'
 export { parseFrontmatter, extractTags, serializeFrontmatter } from './markdown/frontmatter.js'
 export type { ParsedFrontmatter } from './markdown/frontmatter.js'
+export { SearchEngine } from './search/search-engine.js'
+export type { SearchResult, SearchableNote } from './search/search-engine.js'
