@@ -13,7 +13,8 @@ function wikilinkCompletions(source: WikiLinkCompletionSource) {
     const before = context.matchBefore(/\[\[[^\]]*/)
     if (!before) return null
 
-    // The text after [[
+    // The text after [[ is the query; the completion range starts after [[
+    const queryFrom = before.from + 2
     const query = before.text.slice(2).toLowerCase()
     const notes = source.getNotes()
 
@@ -25,13 +26,13 @@ function wikilinkCompletions(source: WikiLinkCompletionSource) {
           n.path.toLowerCase().includes(query)
         )
       })
-      .slice(0, 50) // Limit for performance
+      .slice(0, 50)
       .map((n) => ({
         label: n.title,
         detail: n.path !== n.title + '.md' ? n.path : undefined,
-        apply: (view, completion, from, to) => {
-          // Replace from [[ to cursor with [[Title]]
-          const insert = `[[${completion.label}]]`
+        apply: (view, _completion, from, to) => {
+          // Replace from [[ through cursor with [[Title]]
+          const insert = `[[${n.title}]]`
           view.dispatch({
             changes: { from: before.from, to },
             selection: { anchor: before.from + insert.length },
@@ -40,7 +41,7 @@ function wikilinkCompletions(source: WikiLinkCompletionSource) {
       }))
 
     return {
-      from: before.from,
+      from: queryFrom,
       options,
       filter: false, // We already filtered
     }
