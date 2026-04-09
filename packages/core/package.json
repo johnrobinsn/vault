@@ -19,9 +19,9 @@
   },
   "dependencies": {
     "fflate": "^0.8.2",
-    "gray-matter": "^4",
     "idb": "^8",
-    "mitt": "^3"
+    "mitt": "^3",
+    "yaml": "^2.8.3"
   },
   "devDependencies": {
     "fake-indexeddb": "^6",
