@@ -1,6 +1,10 @@
-import { type CompletionContext, type CompletionResult, type Completion } from '@codemirror/autocomplete'
+import {
+  type CompletionContext,
+  type CompletionResult,
+  type Completion,
+  autocompletion,
+} from '@codemirror/autocomplete'
 import { type Extension } from '@codemirror/state'
-import { autocompletion } from '@codemirror/autocomplete'
 
 export interface WikiLinkCompletionSource {
   /** Returns list of note paths/titles available for linking */
@@ -13,37 +17,28 @@ function wikilinkCompletions(source: WikiLinkCompletionSource) {
     const before = context.matchBefore(/\[\[[^\]]*/)
     if (!before) return null
 
-    // The text after [[ is the query; the completion range starts after [[
-    const queryFrom = before.from + 2
     const query = before.text.slice(2).toLowerCase()
     const notes = source.getNotes()
 
     const options: Completion[] = notes
       .filter((n) => {
         if (!query) return true
-        return (
-          n.title.toLowerCase().includes(query) ||
-          n.path.toLowerCase().includes(query)
-        )
+        return n.title.toLowerCase().includes(query) || n.path.toLowerCase().includes(query)
       })
       .slice(0, 50)
       .map((n) => ({
         label: n.title,
         detail: n.path !== n.title + '.md' ? n.path : undefined,
-        apply: (view, _completion, from, to) => {
-          // Replace from [[ through cursor with [[Title]]
-          const insert = `[[${n.title}]]`
-          view.dispatch({
-            changes: { from: before.from, to },
-            selection: { anchor: before.from + insert.length },
-          })
-        },
+        // String apply: CM6 replaces from..cursor with this text
+        apply: n.title + ']]',
       }))
 
+    // from = after the [[, so CM6 replaces the query text with "Title]]"
+    // resulting in "[[Title]]"
     return {
-      from: queryFrom,
+      from: before.from + 2,
       options,
-      filter: false, // We already filtered
+      filter: false,
     }
   }
 }
