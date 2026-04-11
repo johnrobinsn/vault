@@ -13,15 +13,31 @@
   let saveTimeout: ReturnType<typeof setTimeout> | null = null
   let currentContent = ''
 
+  function markDirty(dirty: boolean) {
+    const tab = tabs.tabs.find((t) => t.path === path)
+    if (tab) tabs.markDirty(tab.id, dirty)
+  }
+
   function debouncedSave(content: string) {
     currentContent = content
     if (saveTimeout) clearTimeout(saveTimeout)
-    const activeTab = tabs.tabs.find((t) => t.path === path)
-    if (activeTab) tabs.markDirty(activeTab.id, true)
+    markDirty(true)
     saveTimeout = setTimeout(async () => {
       await vault.saveNote(path, content)
-      if (activeTab) tabs.markDirty(activeTab.id, false)
+      saveTimeout = null
+      markDirty(false)
     }, 500)
+  }
+
+  /** Immediately save (used by Ctrl+S). */
+  export function saveNow() {
+    if (saveTimeout) {
+      clearTimeout(saveTimeout)
+      saveTimeout = null
+    }
+    if (currentContent) {
+      vault.saveNote(path, currentContent).then(() => markDirty(false))
+    }
   }
 
   async function loadContent() {
@@ -66,16 +82,19 @@
 
     editor = createEditor(opts)
     activeEditor.view = editor
+    activeEditor.saveNow = saveNow
   })
 
   onDestroy(() => {
     if (saveTimeout) {
-      // A debounced save is pending — cancel it and save immediately
       clearTimeout(saveTimeout)
       vault.saveNote(path, currentContent)
     }
     if (editor) {
-      if (activeEditor.view === editor) activeEditor.view = null
+      if (activeEditor.view === editor) {
+        activeEditor.view = null
+        activeEditor.saveNow = null
+      }
       editor.destroy()
     }
   })

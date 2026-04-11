@@ -32,13 +32,25 @@ class VaultState {
   private storage = new APIStorage('/api')
 
   private wireEvents() {
+    // Only refresh on structural changes — not on every save
     this.service.events.on('note:created', () => this.refresh())
-    this.service.events.on('note:saved', () => this.refresh())
+    this.service.events.on('note:saved', (meta) => this.onNoteSaved(meta))
     this.service.events.on('note:deleted', () => this.refresh())
     this.service.events.on('note:renamed', () => this.refresh())
     this.service.events.on('folder:created', () => this.refresh())
     this.service.events.on('folder:deleted', () => this.refresh())
     this.service.events.on('vault:cleared', () => this.refresh())
+  }
+
+  /**
+   * On save, just update the metadata in-place instead of re-fetching everything.
+   * This avoids rebuilding the file tree and losing folder expanded state.
+   */
+  private onNoteSaved(meta: NoteMetadata) {
+    const idx = this.notes.findIndex((n) => n.path === meta.path)
+    if (idx !== -1) {
+      this.notes[idx] = { ...this.notes[idx], modified: meta.modified, size: meta.size }
+    }
   }
 
   /**

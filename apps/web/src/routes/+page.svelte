@@ -9,6 +9,7 @@
   import StatusBar from '$lib/components/StatusBar.svelte'
   import SearchPanel from '$lib/components/SearchPanel.svelte'
   import CommandPalette from '$lib/components/CommandPalette.svelte'
+  import { activeEditor } from '$lib/state/editor.svelte.js'
   import { registerDefaultCommands, refreshNoteCommands } from '$lib/commands/defaults.js'
 
   let resizing = $state(false)
@@ -52,7 +53,10 @@
     if (!vault.initialized) return
     const mod = e.ctrlKey || e.metaKey
 
-    if (mod && e.key === 'n') {
+    if (mod && e.key === 's') {
+      e.preventDefault()
+      activeEditor.saveNow?.()
+    } else if (mod && e.key === 'n') {
       e.preventDefault()
       vault.createNote().then((meta) => tabs.open(meta.path))
     } else if (mod && e.key === 'w') {

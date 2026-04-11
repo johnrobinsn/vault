@@ -30,8 +30,7 @@
       onauxclick={(e) => handleMiddleClick(e, tab)}
       onkeydown={(e) => { if (e.key === 'Enter') handleClick(tab) }}
     >
-      <span class="tab-title">
-        {#if tab.dirty}<span class="dirty-dot"></span>{/if}
+      <span class="tab-title" class:is-dirty={tab.dirty}>
         {tab.title}
       </span>
       <button class="tab-close" onclick={(e) => handleClose(e, tab)} title="Close">
@@ -88,12 +87,19 @@
     gap: 4px;
   }
 
-  .dirty-dot {
+  .tab-title.is-dirty {
+    font-style: italic;
+  }
+
+  .tab-title.is-dirty::before {
+    content: '';
     display: inline-block;
-    width: 6px;
-    height: 6px;
+    width: 7px;
+    height: 7px;
     background: var(--vault-accent);
     border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
   }
 
   .tab-close {
