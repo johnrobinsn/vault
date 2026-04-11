@@ -19,5 +19,7 @@ app.get('/api/health', (c) => c.json({ ok: true }))
 
 const port = parseInt(process.env.PORT ?? '3001')
 
-console.log(`Vault server listening on http://localhost:${port}`)
-serve({ fetch: app.fetch, port })
+const hostname = process.env.HOST ?? '0.0.0.0'
+
+console.log(`Vault server listening on http://${hostname}:${port}`)
+serve({ fetch: app.fetch, port, hostname })
