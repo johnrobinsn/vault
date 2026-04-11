@@ -5,6 +5,9 @@
   let contextMenu = $state<{ x: number; y: number; node: FileTreeNode | null } | null>(null)
   let renamingPath = $state<string | null>(null)
   let renameValue = $state('')
+  let dragOverPath = $state<string | null>(null)
+
+  // --- Click handlers ---
 
   function handleFileClick(node: FileTreeNode) {
     if (node.type === 'file') {
@@ -12,9 +15,16 @@
     }
   }
 
+  function handleDblClick(e: MouseEvent, node: FileTreeNode) {
+    e.preventDefault()
+    startRename(node)
+  }
+
   function toggleFolder(node: FileTreeNode) {
     node.expanded = !node.expanded
   }
+
+  // --- Context menu ---
 
   function handleContextMenu(e: MouseEvent, node: FileTreeNode) {
     e.preventDefault()
@@ -30,11 +40,12 @@
     contextMenu = null
   }
 
+  // --- CRUD operations ---
+
   async function handleNewNote(folder?: string) {
     closeContextMenu()
     const meta = await vault.createNote(folder)
     tabs.open(meta.path)
-    // Start renaming
     renamingPath = meta.path
     renameValue = meta.title
   }
@@ -44,7 +55,19 @@
     await vault.createFolder(parentFolder)
   }
 
-  function handleRename(node: FileTreeNode) {
+  async function handleDelete(node: FileTreeNode) {
+    closeContextMenu()
+    if (node.type === 'file') {
+      await vault.deleteNote(node.path)
+      tabs.removeByPath(node.path)
+    } else {
+      await vault.deleteFolder(node.path)
+    }
+  }
+
+  // --- Rename ---
+
+  function startRename(node: FileTreeNode) {
     closeContextMenu()
     renamingPath = node.path
     renameValue = node.type === 'file' ? node.name.replace(/\.md$/, '') : node.name
@@ -57,12 +80,27 @@
     }
 
     const newName = renameValue.trim()
+
     if (node.type === 'file') {
       const dir = node.path.includes('/') ? node.path.slice(0, node.path.lastIndexOf('/')) : ''
       const newPath = dir ? `${dir}/${newName}.md` : `${newName}.md`
       if (newPath !== node.path) {
         await vault.renameNote(node.path, newPath)
         tabs.updatePath(node.path, newPath)
+      }
+    } else {
+      // Folder rename
+      const dir = node.path.includes('/') ? node.path.slice(0, node.path.lastIndexOf('/')) : ''
+      const newPath = dir ? `${dir}/${newName}` : newName
+      if (newPath !== node.path) {
+        await vault.renameFolder(node.path, newPath)
+        // Update any open tabs whose paths were under the old folder
+        for (const tab of tabs.tabs) {
+          if (tab.path.startsWith(node.path + '/')) {
+            const newTabPath = newPath + tab.path.slice(node.path.length)
+            tabs.updatePath(tab.path, newTabPath)
+          }
+        }
       }
     }
     renamingPath = null
@@ -76,13 +114,101 @@
     }
   }
 
-  async function handleDelete(node: FileTreeNode) {
-    closeContextMenu()
-    if (node.type === 'file') {
-      await vault.deleteNote(node.path)
-      tabs.removeByPath(node.path)
+  // --- Drag and drop ---
+
+  function handleDragStart(e: DragEvent, node: FileTreeNode) {
+    if (!e.dataTransfer) return
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', node.path)
+    e.dataTransfer.setData('application/x-vault-type', node.type)
+  }
+
+  function handleDragOver(e: DragEvent, node: FileTreeNode) {
+    if (node.type !== 'folder') return
+    e.preventDefault()
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+    dragOverPath = node.path
+  }
+
+  function handleDragOverRoot(e: DragEvent) {
+    e.preventDefault()
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+    dragOverPath = '__root__'
+  }
+
+  function handleDragLeave() {
+    dragOverPath = null
+  }
+
+  async function handleDrop(e: DragEvent, targetFolder: string | null) {
+    e.preventDefault()
+    dragOverPath = null
+    if (!e.dataTransfer) return
+
+    const sourcePath = e.dataTransfer.getData('text/plain')
+    const sourceType = e.dataTransfer.getData('application/x-vault-type')
+    if (!sourcePath) return
+
+    // Don't drop onto itself or its own parent
+    const sourceDir = sourcePath.includes('/') ? sourcePath.slice(0, sourcePath.lastIndexOf('/')) : ''
+    if (sourceDir === (targetFolder ?? '')) return
+    if (targetFolder && targetFolder.startsWith(sourcePath + '/')) return // can't drop folder into itself
+
+    const name = sourcePath.split('/').pop()!
+    const newPath = targetFolder ? `${targetFolder}/${name}` : name
+
+    if (sourceType === 'file') {
+      await vault.renameNote(sourcePath, newPath)
+      tabs.updatePath(sourcePath, newPath)
     } else {
-      await vault.deleteFolder(node.path)
+      await vault.renameFolder(sourcePath, newPath)
+      for (const tab of tabs.tabs) {
+        if (tab.path.startsWith(sourcePath + '/')) {
+          const newTabPath = newPath + tab.path.slice(sourcePath.length)
+          tabs.updatePath(tab.path, newTabPath)
+        }
+      }
+    }
+  }
+
+  // --- Move to (context menu) ---
+
+  async function handleMoveTo(node: FileTreeNode) {
+    closeContextMenu()
+    const folders = await vault.service.listFolders()
+    const currentDir = node.path.includes('/') ? node.path.slice(0, node.path.lastIndexOf('/')) : ''
+
+    // Build list of possible destinations: root + all folders except current parent and self
+    const destinations: { label: string; path: string }[] = [
+      { label: '/ (root)', path: '' },
+      ...folders
+        .filter((f) => f !== currentDir && f !== node.path && !f.startsWith(node.path + '/'))
+        .map((f) => ({ label: f, path: f })),
+    ]
+
+    // Show a simple prompt with folder selection (using the context menu position)
+    const target = prompt(
+      `Move "${node.name}" to folder:\n\n${destinations.map((d, i) => `${i}: ${d.label}`).join('\n')}\n\nEnter number:`,
+    )
+    if (target === null) return
+    const idx = parseInt(target)
+    if (isNaN(idx) || idx < 0 || idx >= destinations.length) return
+
+    const dest = destinations[idx]
+    const name = node.path.split('/').pop()!
+    const newPath = dest.path ? `${dest.path}/${name}` : name
+
+    if (node.type === 'file') {
+      await vault.renameNote(node.path, newPath)
+      tabs.updatePath(node.path, newPath)
+    } else {
+      await vault.renameFolder(node.path, newPath)
+      for (const tab of tabs.tabs) {
+        if (tab.path.startsWith(node.path + '/')) {
+          const newTabPath = newPath + tab.path.slice(node.path.length)
+          tabs.updatePath(tab.path, newTabPath)
+        }
+      }
     }
   }
 
@@ -94,7 +220,15 @@
 
 <svelte:window onclick={handleWindowClick} />
 
-<div class="file-explorer" oncontextmenu={handleBackgroundContextMenu}>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="file-explorer"
+  oncontextmenu={handleBackgroundContextMenu}
+  ondragover={handleDragOverRoot}
+  ondragleave={handleDragLeave}
+  ondrop={(e) => handleDrop(e, null)}
+  class:drag-over-root={dragOverPath === '__root__'}
+>
   {#each vault.tree as node (node.path)}
     {@render treeNode(node, 0)}
   {/each}
@@ -110,15 +244,21 @@
     </button>
     {#if contextMenu.node}
       <div class="separator"></div>
-      <button onclick={() => contextMenu?.node && handleRename(contextMenu.node)}>Rename</button>
+      <button onclick={() => contextMenu?.node && startRename(contextMenu.node)}>Rename</button>
+      <button onclick={() => contextMenu?.node && handleMoveTo(contextMenu.node)}>Move to...</button>
       <button class="danger" onclick={() => contextMenu?.node && handleDelete(contextMenu.node)}>Delete</button>
     {/if}
   </div>
 {/if}
 
 {#snippet treeNode(node: FileTreeNode, depth: number)}
-  <div class="tree-item" style="padding-left: {depth * 16 + 8}px">
+  <div
+    class="tree-item"
+    style="padding-left: {depth * 16 + 8}px"
+    class:drag-over={dragOverPath === node.path}
+  >
     {#if renamingPath === node.path}
+      <!-- svelte-ignore a11y_autofocus -->
       <input
         class="rename-input"
         bind:value={renameValue}
@@ -131,7 +271,13 @@
         class="tree-button"
         class:active={tabs.activeTab?.path === node.path}
         onclick={() => node.type === 'folder' ? toggleFolder(node) : handleFileClick(node)}
+        ondblclick={(e) => handleDblClick(e, node)}
         oncontextmenu={(e) => handleContextMenu(e, node)}
+        draggable="true"
+        ondragstart={(e) => handleDragStart(e, node)}
+        ondragover={(e) => node.type === 'folder' ? handleDragOver(e, node) : undefined}
+        ondragleave={handleDragLeave}
+        ondrop={(e) => node.type === 'folder' ? handleDrop(e, node.path) : undefined}
       >
         <span class="icon">
           {#if node.type === 'folder'}
@@ -161,6 +307,17 @@
   .tree-item {
     display: flex;
     align-items: center;
+  }
+
+  .tree-item.drag-over {
+    background: var(--vault-accent);
+    opacity: 0.15;
+    border-radius: 4px;
+  }
+
+  .drag-over-root {
+    outline: 2px dashed var(--vault-accent);
+    outline-offset: -2px;
   }
 
   .tree-button {

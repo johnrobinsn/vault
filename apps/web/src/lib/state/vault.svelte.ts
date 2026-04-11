@@ -163,7 +163,11 @@ class VaultState {
   }
 
   async renameNote(oldPath: string, newPath: string): Promise<void> {
-    await this.service.renameNote(oldPath, newPath)
+    await this.service.renameNoteWithRefactor(oldPath, newPath)
+  }
+
+  async renameFolder(oldPath: string, newPath: string): Promise<void> {
+    await this.service.renameFolder(oldPath, newPath)
   }
 
   async readNote(path: string): Promise<string | null> {

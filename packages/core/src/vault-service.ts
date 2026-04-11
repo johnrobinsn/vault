@@ -1,5 +1,6 @@
 import type { VaultStorage, NoteMetadata } from './storage/types.js'
 import { createEventBus, type VaultEventBus } from './events.js'
+import { replaceWikiLinkTarget } from './markdown/wikilinks.js'
 
 const TRASH_FOLDER = '.trash'
 
@@ -100,6 +101,64 @@ export class VaultService {
     await this.storage.setMetadata(newPath, updated)
     this.events.emit('note:renamed', { oldPath, newPath })
     return updated
+  }
+
+  /**
+   * Rename a note and update all [[wiki-links]] across the vault that
+   * reference the old name.
+   */
+  async renameNoteWithRefactor(oldPath: string, newPath: string): Promise<NoteMetadata> {
+    const oldTitle = titleFromPath(oldPath)
+    const newTitle = titleFromPath(newPath)
+
+    // Rename the note itself
+    const meta = await this.renameNote(oldPath, newPath)
+
+    // If the title changed, refactor wiki-links in all other notes
+    if (oldTitle.toLowerCase() !== newTitle.toLowerCase()) {
+      const allNotes = await this.getAllNotes()
+      for (const note of allNotes) {
+        if (note.path === newPath) continue
+        const content = await this.storage.readNote(note.path)
+        if (!content) continue
+        const updated = replaceWikiLinkTarget(content, oldTitle, newTitle)
+        if (updated !== content) {
+          await this.storage.writeNote(note.path, updated)
+        }
+      }
+    }
+
+    return meta
+  }
+
+  /**
+   * Rename a folder and update paths of all notes within it.
+   */
+  async renameFolder(oldPath: string, newPath: string): Promise<void> {
+    // Get all notes in this folder
+    const allNotes = await this.storage.getAllMetadata()
+    const notesInFolder = allNotes.filter((n) => n.path.startsWith(oldPath + '/'))
+
+    // Move each note to the new folder path
+    for (const note of notesInFolder) {
+      const relativePath = note.path.slice(oldPath.length)
+      const newNotePath = newPath + relativePath
+      await this.storage.moveNote(note.path, newNotePath)
+      const meta = await this.storage.getMetadata(newNotePath)
+      if (meta) {
+        await this.storage.setMetadata(newNotePath, { ...meta, path: newNotePath })
+      }
+    }
+
+    // Create the new folder and delete the old one
+    await this.storage.createFolder(newPath)
+    if (notesInFolder.length === 0) {
+      // Only delete if we didn't already move all contents (which removes the dir)
+      await this.storage.deleteFolder(oldPath)
+    }
+
+    this.events.emit('folder:created', { path: newPath })
+    this.events.emit('folder:deleted', { path: oldPath })
   }
 
   async getMetadata(path: string): Promise<NoteMetadata | null> {
