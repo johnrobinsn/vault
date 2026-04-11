@@ -2,7 +2,9 @@ import { commandRegistry } from './registry.js'
 import { vault } from '$lib/state/vault.svelte.js'
 import { tabs } from '$lib/state/tabs.svelte.js'
 import { ui } from '$lib/state/ui.svelte.js'
+import { activeEditor } from '$lib/state/editor.svelte.js'
 import { exportVault, importVault } from '@vault/core'
+import { createBlankTable } from '@vault/editor'
 
 export function registerDefaultCommands() {
   commandRegistry.register({
@@ -70,6 +72,22 @@ export function registerDefaultCommands() {
     label: 'Command Palette',
     shortcut: 'Ctrl+P',
     execute: () => ui.toggleCommandPalette(),
+  })
+
+  commandRegistry.register({
+    id: 'editor:insert-table',
+    label: 'Insert Table',
+    execute: () => {
+      const view = activeEditor.view
+      if (!view) return
+      const pos = view.state.selection.main.head
+      const table = '\n' + createBlankTable(3, 2) + '\n'
+      view.dispatch({
+        changes: { from: pos, insert: table },
+        selection: { anchor: pos + table.length },
+      })
+      view.focus()
+    },
   })
 
   commandRegistry.register({

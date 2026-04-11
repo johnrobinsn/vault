@@ -5,3 +5,4 @@ export { wikilinkDecoration, setWikiLinkClickHandler } from './wikilink-decorati
 export { wikilinkCompletion } from './autocomplete/wikilink-completion.js'
 export type { WikiLinkCompletionSource } from './autocomplete/wikilink-completion.js'
 export { vaultEditorTheme } from './theme.js'
+export { tableEditor, createBlankTable } from './table/index.js'

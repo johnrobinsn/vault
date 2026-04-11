@@ -10,6 +10,7 @@ import {
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { livePreview } from './live-preview/index.js'
+import { tableEditor } from './table/index.js'
 import { wikilinkDecoration, setWikiLinkClickHandler } from './wikilink-decoration.js'
 import { vaultEditorTheme } from './theme.js'
 import {
@@ -107,6 +108,7 @@ export function createEditor({
     markdown({ base: markdownLanguage }),
     syntaxHighlighting(defaultHighlightStyle),
     livePreview(),
+    tableEditor(),
     wikilinkDecoration(),
     updateListener,
     clickHandler,

@@ -152,5 +152,56 @@ export function vaultEditorTheme(): Extension {
       borderBottom: '2px solid var(--vault-border)',
       margin: '8px 16px',
     },
+
+    // Table editor
+    '.cm-table-editor': {
+      margin: '8px 16px',
+      borderRadius: '6px',
+      border: '1px solid var(--vault-border)',
+      overflow: 'hidden',
+    },
+    '.cm-table-toolbar': {
+      display: 'flex',
+      gap: '4px',
+      padding: '4px 8px',
+      backgroundColor: 'var(--vault-bg-tertiary)',
+      borderBottom: '1px solid var(--vault-border)',
+    },
+    '.cm-table-btn': {
+      padding: '2px 8px',
+      border: '1px solid var(--vault-border)',
+      borderRadius: '4px',
+      background: 'var(--vault-bg-secondary)',
+      color: 'var(--vault-text-secondary)',
+      fontSize: '11px',
+      cursor: 'pointer',
+      fontFamily: 'inherit',
+    },
+    '.cm-table-btn:hover': {
+      background: 'var(--vault-bg-primary)',
+      color: 'var(--vault-text-primary)',
+    },
+    '.cm-table': {
+      width: '100%',
+      borderCollapse: 'collapse',
+      fontSize: '14px',
+    },
+    '.cm-table th, .cm-table td': {
+      border: '1px solid var(--vault-border)',
+      padding: '6px 10px',
+      minWidth: '60px',
+    },
+    '.cm-table th': {
+      backgroundColor: 'var(--vault-bg-tertiary)',
+      fontWeight: '600',
+      fontSize: '13px',
+    },
+    '.cm-table-cell:focus': {
+      outline: '2px solid var(--vault-accent)',
+      outlineOffset: '-2px',
+    },
+    '.cm-table-source-line': {
+      backgroundColor: 'var(--vault-bg-secondary)',
+    },
   })
 }
