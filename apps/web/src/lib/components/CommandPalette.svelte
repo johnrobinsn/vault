@@ -22,6 +22,13 @@
     }
   }
 
+  function scrollSelectedIntoView() {
+    requestAnimationFrame(() => {
+      const el = document.querySelector('.palette-item.selected')
+      el?.scrollIntoView({ block: 'nearest' })
+    })
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       ui.commandPaletteOpen = false
@@ -29,9 +36,11 @@
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
       selectedIndex = Math.min(selectedIndex + 1, results.length - 1)
+      scrollSelectedIntoView()
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       selectedIndex = Math.max(selectedIndex - 1, 0)
+      scrollSelectedIntoView()
     } else if (e.key === 'Enter') {
       e.preventDefault()
       executeSelected()
