@@ -2,7 +2,7 @@ import { syntaxTree } from '@codemirror/language'
 import { type Extension, type Range, StateField, StateEffect } from '@codemirror/state'
 import { Decoration, type DecorationSet, EditorView } from '@codemirror/view'
 import { parseTable } from './table-parser.js'
-import { TableEditorWidget } from './table-widget.js'
+import { TableEditorWidget, TableSourceToggleWidget } from './table-widget.js'
 
 interface SourceRange {
   from: number
@@ -87,10 +87,16 @@ function buildDecorations(state: import('@codemirror/state').EditorState): Decor
 
       if (isInSourceMode(sourceRanges, node.from, node.to)) {
         // In source mode — show a "Visual" toggle button above the raw markdown
-        // We just don't replace — the raw markdown shows through
-        // Add a line decoration on the first line as a visual hint
-        const line = state.doc.lineAt(node.from)
-        decs.push(Decoration.line({ class: 'cm-table-source-line' }).range(line.from))
+        const toggleWidget = new TableSourceToggleWidget(node.from, node.to)
+        decs.push(
+          Decoration.widget({ widget: toggleWidget, block: true }).range(node.from),
+        )
+        // Highlight source lines
+        for (let pos = node.from; pos <= node.to; ) {
+          const line = state.doc.lineAt(pos)
+          decs.push(Decoration.line({ class: 'cm-table-source-line' }).range(line.from))
+          pos = line.to + 1
+        }
       } else {
         // Visual mode — replace the entire table with the interactive widget
         const widget = new TableEditorWidget(data, node.from, node.to)

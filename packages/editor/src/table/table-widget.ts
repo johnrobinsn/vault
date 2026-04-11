@@ -1,7 +1,7 @@
 import { EditorView, WidgetType } from '@codemirror/view'
 import type { Alignment, TableData } from './table-parser.js'
 import { serializeTable } from './table-serializer.js'
-import { enterTableSourceMode } from './table-plugin.js'
+import { enterTableSourceMode, exitTableSourceMode } from './table-plugin.js'
 
 function cloneData(data: TableData): TableData {
   return {
@@ -375,4 +375,42 @@ function showContextMenu(
   setTimeout(() => document.addEventListener('mousedown', closeHandler), 0)
 
   document.body.appendChild(menu)
+}
+
+/**
+ * Small widget shown above a table in source mode with a "Visual" button
+ * to switch back to the interactive table view.
+ */
+export class TableSourceToggleWidget extends WidgetType {
+  constructor(
+    readonly from: number,
+    readonly to: number,
+  ) {
+    super()
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const container = document.createElement('div')
+    container.className = 'cm-table-toolbar'
+
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'cm-table-btn'
+    btn.textContent = 'Visual'
+    btn.title = 'Switch to visual table editor'
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      view.dispatch({
+        effects: exitTableSourceMode.of({ from: this.from, to: this.to }),
+      })
+    })
+    container.appendChild(btn)
+
+    return container
+  }
+
+  ignoreEvent(): boolean {
+    return true
+  }
 }
