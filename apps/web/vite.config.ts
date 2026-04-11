@@ -8,6 +8,7 @@ export default defineConfig({
     port: 5175,
     strictPort: true,
     host: true,
+    allowedHosts: ['neo.local'],
     proxy: {
       '/api': {
         target: 'http://localhost:3001',

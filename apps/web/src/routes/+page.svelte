@@ -13,6 +13,7 @@
   import { registerDefaultCommands, refreshNoteCommands } from '$lib/commands/defaults.js'
 
   let resizing = $state(false)
+  let fileExplorer: ReturnType<typeof FileExplorer> | null = null
   let newVaultName = $state('')
   let newVaultPath = $state('')
   let showCreateForm = $state(false)
@@ -78,6 +79,13 @@
     } else if (mod && e.key === 'b') {
       e.preventDefault()
       ui.toggleSidebar()
+    } else if (mod && e.shiftKey && e.key === 'E') {
+      e.preventDefault()
+      if (!ui.sidebarVisible) ui.toggleSidebar()
+      fileExplorer?.focusExplorer()
+    } else if (mod && e.key === 'e' && !e.shiftKey) {
+      e.preventDefault()
+      activeEditor.view?.focus()
     }
   }
 
@@ -168,7 +176,7 @@
           </button>
         </div>
         <div class="sidebar-content">
-          <FileExplorer />
+          <FileExplorer bind:this={fileExplorer} />
         </div>
       </aside>
       <div class="resize-handle" onmousedown={startResize}></div>

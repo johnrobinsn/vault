@@ -1,11 +1,152 @@
 <script lang="ts">
   import { vault, type FileTreeNode } from '$lib/state/vault.svelte.js'
   import { tabs } from '$lib/state/tabs.svelte.js'
+  import { activeEditor } from '$lib/state/editor.svelte.js'
 
   let contextMenu = $state<{ x: number; y: number; node: FileTreeNode | null } | null>(null)
   let renamingPath = $state<string | null>(null)
   let renameValue = $state('')
   let dragOverPath = $state<string | null>(null)
+  let explorerEl = $state<HTMLDivElement | null>(null)
+
+  /**
+   * Flatten the visible tree into an ordered list for keyboard navigation.
+   * Only includes nodes whose parent folders are expanded.
+   */
+  function flattenVisible(nodes: FileTreeNode[]): FileTreeNode[] {
+    const result: FileTreeNode[] = []
+    for (const node of nodes) {
+      result.push(node)
+      if (node.type === 'folder' && node.expanded) {
+        result.push(...flattenVisible(node.children))
+      }
+    }
+    return result
+  }
+
+  /** Get all tree-button elements in DOM order. */
+  function getButtons(): HTMLButtonElement[] {
+    if (!explorerEl) return []
+    return Array.from(explorerEl.querySelectorAll<HTMLButtonElement>('.tree-button'))
+  }
+
+  /** Focus the explorer and optionally a specific button index. */
+  export function focusExplorer() {
+    const buttons = getButtons()
+    if (buttons.length > 0) {
+      // Focus the active file's button, or the first one
+      const activeBtn = buttons.find((b) => b.classList.contains('active'))
+      ;(activeBtn ?? buttons[0]).focus()
+    }
+  }
+
+  // --- Keyboard navigation ---
+
+  function handleExplorerKeydown(e: KeyboardEvent) {
+    if (renamingPath) return // let rename input handle keys
+
+    const target = e.target as HTMLElement
+    if (!target.classList.contains('tree-button')) return
+
+    const buttons = getButtons()
+    const idx = buttons.indexOf(target as HTMLButtonElement)
+    if (idx === -1) return
+
+    const flat = flattenVisible(vault.tree)
+    const node = flat[idx]
+    if (!node) return
+
+    switch (e.key) {
+      case 'ArrowDown': {
+        e.preventDefault()
+        const next = buttons[idx + 1]
+        next?.focus()
+        break
+      }
+      case 'ArrowUp': {
+        e.preventDefault()
+        const prev = buttons[idx - 1]
+        prev?.focus()
+        break
+      }
+      case 'ArrowRight': {
+        e.preventDefault()
+        if (node.type === 'folder') {
+          if (!node.expanded) {
+            node.expanded = true
+          } else {
+            // Move to first child
+            const next = buttons[idx + 1]
+            next?.focus()
+          }
+        }
+        break
+      }
+      case 'ArrowLeft': {
+        e.preventDefault()
+        if (node.type === 'folder' && node.expanded) {
+          node.expanded = false
+        } else {
+          // Move to parent folder — find the previous folder at a shallower depth
+          const nodeDepth = node.path.split('/').length
+          for (let i = idx - 1; i >= 0; i--) {
+            const candidate = flat[i]
+            if (candidate.type === 'folder' && candidate.path.split('/').length < nodeDepth) {
+              buttons[i]?.focus()
+              break
+            }
+          }
+        }
+        break
+      }
+      case 'Enter': {
+        e.preventDefault()
+        if (node.type === 'file') {
+          tabs.open(node.path)
+          // Focus editor after opening
+          setTimeout(() => activeEditor.view?.focus(), 50)
+        } else {
+          node.expanded = !node.expanded
+        }
+        break
+      }
+      case ' ': {
+        e.preventDefault()
+        if (node.type === 'folder') {
+          node.expanded = !node.expanded
+        } else {
+          tabs.open(node.path)
+        }
+        break
+      }
+      case 'Home': {
+        e.preventDefault()
+        buttons[0]?.focus()
+        break
+      }
+      case 'End': {
+        e.preventDefault()
+        buttons[buttons.length - 1]?.focus()
+        break
+      }
+      case 'F2': {
+        e.preventDefault()
+        startRename(node)
+        break
+      }
+      case 'Delete': {
+        e.preventDefault()
+        handleDelete(node)
+        break
+      }
+      case 'Escape': {
+        e.preventDefault()
+        // Return focus to editor
+        activeEditor.view?.focus()
+        break
+      }
+    }
+  }
 
   // --- Click handlers ---
 
@@ -89,12 +230,10 @@
         tabs.updatePath(node.path, newPath)
       }
     } else {
-      // Folder rename
       const dir = node.path.includes('/') ? node.path.slice(0, node.path.lastIndexOf('/')) : ''
       const newPath = dir ? `${dir}/${newName}` : newName
       if (newPath !== node.path) {
         await vault.renameFolder(node.path, newPath)
-        // Update any open tabs whose paths were under the old folder
         for (const tab of tabs.tabs) {
           if (tab.path.startsWith(node.path + '/')) {
             const newTabPath = newPath + tab.path.slice(node.path.length)
@@ -149,10 +288,9 @@
     const sourceType = e.dataTransfer.getData('application/x-vault-type')
     if (!sourcePath) return
 
-    // Don't drop onto itself or its own parent
     const sourceDir = sourcePath.includes('/') ? sourcePath.slice(0, sourcePath.lastIndexOf('/')) : ''
     if (sourceDir === (targetFolder ?? '')) return
-    if (targetFolder && targetFolder.startsWith(sourcePath + '/')) return // can't drop folder into itself
+    if (targetFolder && targetFolder.startsWith(sourcePath + '/')) return
 
     const name = sourcePath.split('/').pop()!
     const newPath = targetFolder ? `${targetFolder}/${name}` : name
@@ -178,7 +316,6 @@
     const folders = await vault.service.listFolders()
     const currentDir = node.path.includes('/') ? node.path.slice(0, node.path.lastIndexOf('/')) : ''
 
-    // Build list of possible destinations: root + all folders except current parent and self
     const destinations: { label: string; path: string }[] = [
       { label: '/ (root)', path: '' },
       ...folders
@@ -186,7 +323,6 @@
         .map((f) => ({ label: f, path: f })),
     ]
 
-    // Show a simple prompt with folder selection (using the context menu position)
     const target = prompt(
       `Move "${node.name}" to folder:\n\n${destinations.map((d, i) => `${i}: ${d.label}`).join('\n')}\n\nEnter number:`,
     )
@@ -212,7 +348,6 @@
     }
   }
 
-  // Close context menu on click outside
   function handleWindowClick() {
     if (contextMenu) closeContextMenu()
   }
@@ -223,7 +358,10 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="file-explorer"
+  bind:this={explorerEl}
+  role="tree"
   oncontextmenu={handleBackgroundContextMenu}
+  onkeydown={handleExplorerKeydown}
   ondragover={handleDragOverRoot}
   ondragleave={handleDragLeave}
   ondrop={(e) => handleDrop(e, null)}
@@ -254,6 +392,8 @@
 {#snippet treeNode(node: FileTreeNode, depth: number)}
   <div
     class="tree-item"
+    role="treeitem"
+    aria-expanded={node.type === 'folder' ? node.expanded : undefined}
     style="padding-left: {depth * 16 + 8}px"
     class:drag-over={dragOverPath === node.path}
   >
@@ -270,6 +410,7 @@
       <button
         class="tree-button"
         class:active={tabs.activeTab?.path === node.path}
+        class:focused-node={false}
         onclick={() => node.type === 'folder' ? toggleFolder(node) : handleFileClick(node)}
         ondblclick={(e) => handleDblClick(e, node)}
         oncontextmenu={(e) => handleContextMenu(e, node)}
@@ -338,6 +479,12 @@
 
   .tree-button:hover {
     background: var(--vault-bg-tertiary);
+  }
+
+  .tree-button:focus {
+    outline: none;
+    background: var(--vault-bg-tertiary);
+    box-shadow: inset 0 0 0 1px var(--vault-accent);
   }
 
   .tree-button.active {
