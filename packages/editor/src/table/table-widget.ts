@@ -3,6 +3,24 @@ import type { Alignment, TableData } from './table-parser.js'
 import { serializeTable } from './table-serializer.js'
 import { enterTableSourceMode, exitTableSourceMode } from './table-plugin.js'
 
+/**
+ * Render simple inline markdown to HTML for table cell display.
+ * Handles: **bold**, *italic*, `code`, ~~strikethrough~~, [[wikilinks]]
+ */
+function renderInlineMarkdown(text: string): string {
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  // Order matters: bold before italic
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
+  html = html.replace(/~~(.+?)~~/g, '<s>$1</s>')
+  html = html.replace(/`(.+?)`/g, '<code>$1</code>')
+  html = html.replace(/\[\[(.+?)\]\]/g, '<span class="cm-wikilink-target">$1</span>')
+  return html
+}
+
 function cloneData(data: TableData): TableData {
   return {
     headers: [...data.headers],
@@ -107,8 +125,13 @@ export class TableEditorWidget extends WidgetType {
       cell.className = 'cm-table-cell'
       cell.contentEditable = 'true'
       cell.spellcheck = false
-      cell.textContent = value
+      cell.innerHTML = renderInlineMarkdown(value)
       if (align) cell.style.textAlign = align
+
+      cell.addEventListener('focus', () => {
+        // Switch to raw markdown for editing
+        cell.textContent = value
+      })
 
       cell.addEventListener('blur', () => {
         const next = cell.textContent ?? ''
@@ -116,6 +139,8 @@ export class TableEditorWidget extends WidgetType {
           value = next
           onEdit(next)
         }
+        // Switch back to rendered markdown
+        cell.innerHTML = renderInlineMarkdown(value)
       })
 
       cell.addEventListener('keydown', (e) => {
