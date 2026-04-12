@@ -80,55 +80,14 @@ export class TableEditorWidget extends WidgetType {
       flush()
     })
 
-    // --- Toolbar ---
-    const toolbar = document.createElement('div')
-    toolbar.className = 'cm-table-toolbar'
-
-    const srcBtn = document.createElement('button')
-    srcBtn.type = 'button'
-    srcBtn.className = 'cm-table-btn'
-    srcBtn.textContent = 'Source'
-    srcBtn.title = 'Edit as markdown'
-    srcBtn.addEventListener('mousedown', (e) => {
-      e.preventDefault()
-      e.stopPropagation()
+    // Source mode toggle function (passed to context menu)
+    const switchToSource = () => {
       flush()
       view.dispatch({
         selection: { anchor: origFrom },
         effects: enterTableSourceMode.of({ from: origFrom, to: origTo }),
       })
-    })
-    toolbar.appendChild(srcBtn)
-
-    const addRowBtn = document.createElement('button')
-    addRowBtn.type = 'button'
-    addRowBtn.className = 'cm-table-btn'
-    addRowBtn.textContent = '+ Row'
-    addRowBtn.addEventListener('mousedown', (e) => {
-      e.preventDefault()
-      e.stopPropagation()
-      const updated = cloneData(local)
-      updated.rows.push(Array(local.headers.length).fill(''))
-      commitStructural(updated)
-    })
-    toolbar.appendChild(addRowBtn)
-
-    const addColBtn = document.createElement('button')
-    addColBtn.type = 'button'
-    addColBtn.className = 'cm-table-btn'
-    addColBtn.textContent = '+ Col'
-    addColBtn.addEventListener('mousedown', (e) => {
-      e.preventDefault()
-      e.stopPropagation()
-      const updated = cloneData(local)
-      updated.headers.push('')
-      updated.alignments.push(null)
-      updated.rows.forEach((r) => r.push(''))
-      commitStructural(updated)
-    })
-    toolbar.appendChild(addColBtn)
-
-    container.appendChild(toolbar)
+    }
 
     // --- Table ---
     const table = document.createElement('table')
@@ -209,7 +168,7 @@ export class TableEditorWidget extends WidgetType {
         // Flush current cell
         const next = cell.textContent ?? ''
         if (next !== value) { value = next; onEdit(next) }
-        showContextMenu(e, rowIdx, colIdx, local, commitStructural, container)
+        showContextMenu(e, rowIdx, colIdx, local, commitStructural, switchToSource)
       })
 
       return cell
@@ -264,10 +223,10 @@ function showContextMenu(
   colIdx: number,
   data: TableData,
   commit: (updated: TableData) => void,
-  container: HTMLElement,
+  switchToSource: () => void,
 ) {
-  const existing = container.querySelector('.cm-table-context-menu')
-  if (existing) existing.remove()
+  // Remove any existing context menu
+  document.querySelector('.cm-table-context-menu')?.remove()
 
   const menu = document.createElement('div')
   menu.className = 'cm-table-context-menu'
@@ -365,6 +324,30 @@ function showContextMenu(
         commit(updated)
       },
     },
+    { label: '---', action: () => {} },
+    {
+      label: 'Add Row',
+      action: () => {
+        const updated = cloneData(data)
+        updated.rows.push(Array(data.headers.length).fill(''))
+        commit(updated)
+      },
+    },
+    {
+      label: 'Add Column',
+      action: () => {
+        const updated = cloneData(data)
+        updated.headers.push('')
+        updated.alignments.push(null)
+        updated.rows.forEach((r) => r.push(''))
+        commit(updated)
+      },
+    },
+    { label: '---', action: () => {} },
+    {
+      label: 'Edit as Markdown',
+      action: switchToSource,
+    },
   )
 
   for (const item of items) {
@@ -397,7 +380,8 @@ function showContextMenu(
 }
 
 /**
- * Widget shown above a table in source mode with a "Visual" button.
+ * Small inline marker for source-mode tables. Shows a right-click
+ * context menu with "View as Table" to switch back to visual mode.
  */
 export class TableSourceToggleWidget extends WidgetType {
   constructor(
@@ -408,27 +392,66 @@ export class TableSourceToggleWidget extends WidgetType {
   }
 
   toDOM(view: EditorView): HTMLElement {
-    const container = document.createElement('div')
-    container.className = 'cm-table-toolbar'
+    const marker = document.createElement('span')
+    marker.className = 'cm-table-source-marker'
+    marker.textContent = '⊞'
+    marker.title = 'Right-click for table options'
 
-    const btn = document.createElement('button')
-    btn.type = 'button'
-    btn.className = 'cm-table-btn'
-    btn.textContent = 'Visual'
-    btn.title = 'Switch to visual table editor'
-    btn.addEventListener('mousedown', (e) => {
+    marker.addEventListener('contextmenu', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      showSourceContextMenu(e, view, this.from, this.to)
+    })
+
+    // Also handle click for convenience
+    marker.addEventListener('mousedown', (e) => {
       e.preventDefault()
       e.stopPropagation()
       view.dispatch({
         effects: exitTableSourceMode.of({ from: this.from, to: this.to }),
       })
     })
-    container.appendChild(btn)
 
-    return container
+    return marker
   }
 
   ignoreEvent(): boolean {
-    return true
+    return false
   }
+}
+
+function showSourceContextMenu(
+  event: MouseEvent,
+  view: EditorView,
+  from: number,
+  to: number,
+) {
+  document.querySelector('.cm-table-context-menu')?.remove()
+
+  const menu = document.createElement('div')
+  menu.className = 'cm-table-context-menu'
+  menu.style.left = `${event.clientX}px`
+  menu.style.top = `${event.clientY}px`
+
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.className = 'cm-table-menu-item'
+  btn.textContent = 'View as Table'
+  btn.addEventListener('mousedown', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    menu.remove()
+    view.dispatch({
+      effects: exitTableSourceMode.of({ from, to }),
+    })
+  })
+  menu.appendChild(btn)
+
+  const closeHandler = () => {
+    menu.remove()
+    document.removeEventListener('mousedown', closeHandler)
+  }
+  setTimeout(() => document.addEventListener('mousedown', closeHandler), 0)
+
+  document.body.appendChild(menu)
 }

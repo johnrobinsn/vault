@@ -205,27 +205,6 @@ export function vaultEditorTheme(): Extension {
       border: '1px solid var(--vault-border)',
       overflow: 'hidden',
     },
-    '.cm-table-toolbar': {
-      display: 'flex',
-      gap: '4px',
-      padding: '4px 8px',
-      backgroundColor: 'var(--vault-bg-tertiary)',
-      borderBottom: '1px solid var(--vault-border)',
-    },
-    '.cm-table-btn': {
-      padding: '2px 8px',
-      border: '1px solid var(--vault-border)',
-      borderRadius: '4px',
-      background: 'var(--vault-bg-secondary)',
-      color: 'var(--vault-text-secondary)',
-      fontSize: '11px',
-      cursor: 'pointer',
-      fontFamily: 'inherit',
-    },
-    '.cm-table-btn:hover': {
-      background: 'var(--vault-bg-primary)',
-      color: 'var(--vault-text-primary)',
-    },
     '.cm-table': {
       width: '100%',
       borderCollapse: 'collapse',
@@ -247,6 +226,16 @@ export function vaultEditorTheme(): Extension {
     },
     '.cm-table-source-line': {
       backgroundColor: 'var(--vault-bg-secondary)',
+    },
+    '.cm-table-source-marker': {
+      color: 'var(--vault-accent)',
+      cursor: 'pointer',
+      fontSize: '14px',
+      marginRight: '6px',
+      opacity: '0.7',
+    },
+    '.cm-table-source-marker:hover': {
+      opacity: '1',
     },
   })
 }
