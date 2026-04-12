@@ -20,7 +20,6 @@ export const exitTableSourceMode = StateEffect.define<SourceRange>()
 const sourceModeTables = StateField.define<SourceRange[]>({
   create: () => [],
   update(ranges, tr) {
-    // Map positions through document changes
     let next = ranges.map((r) => ({
       from: tr.changes.mapPos(r.from, 1),
       to: tr.changes.mapPos(r.to, -1),
@@ -32,7 +31,6 @@ const sourceModeTables = StateField.define<SourceRange[]>({
           from: tr.changes.mapPos(effect.value.from, 1),
           to: tr.changes.mapPos(effect.value.to, -1),
         }
-        // Add if not already present
         if (!next.some((r) => r.from <= mapped.to && r.to >= mapped.from)) {
           next = [...next, mapped]
         }
@@ -54,20 +52,57 @@ function isInSourceMode(ranges: SourceRange[], from: number, to: number): boolea
 }
 
 /**
+ * Check if any changed range overlaps a table region.
+ */
+function changesOverlapTable(
+  tr: import('@codemirror/state').Transaction,
+  state: import('@codemirror/state').EditorState,
+): boolean {
+  let overlaps = false
+  const tree = syntaxTree(state)
+
+  tr.changes.iterChangedRanges((fromA, toA) => {
+    if (overlaps) return
+    // Check if the changed range is inside or near a Table node
+    tree.iterate({
+      from: Math.max(0, fromA - 1),
+      to: Math.min(state.doc.length, toA + 1),
+      enter(node) {
+        if (node.name === 'Table') overlaps = true
+      },
+    })
+  })
+
+  return overlaps
+}
+
+/**
  * StateField that builds table decorations.
+ * Only rebuilds when changes touch table regions or effects toggle source mode.
  */
 const tableDecorations = StateField.define<DecorationSet>({
   create(state) {
     return buildDecorations(state)
   },
   update(deco, tr) {
+    // Always rebuild on source mode toggle or reconfigure
     if (
-      tr.docChanged ||
       tr.reconfigured ||
       tr.effects.some((e) => e.is(enterTableSourceMode) || e.is(exitTableSourceMode))
     ) {
       return buildDecorations(tr.state)
     }
+
+    if (tr.docChanged) {
+      // Check if changes overlap a table — if so, rebuild
+      // Check against BOTH old and new state trees
+      if (changesOverlapTable(tr, tr.startState) || changesOverlapTable(tr, tr.state)) {
+        return buildDecorations(tr.state)
+      }
+      // Otherwise just map positions through the changes
+      return deco.map(tr.changes)
+    }
+
     return deco
   },
   provide: (f) => EditorView.decorations.from(f),
@@ -86,19 +121,16 @@ function buildDecorations(state: import('@codemirror/state').EditorState): Decor
       if (!data) return
 
       if (isInSourceMode(sourceRanges, node.from, node.to)) {
-        // In source mode — show a "Visual" toggle button above the raw markdown
         const toggleWidget = new TableSourceToggleWidget(node.from, node.to)
         decs.push(
           Decoration.widget({ widget: toggleWidget, block: true }).range(node.from),
         )
-        // Highlight source lines
         for (let pos = node.from; pos <= node.to; ) {
           const line = state.doc.lineAt(pos)
           decs.push(Decoration.line({ class: 'cm-table-source-line' }).range(line.from))
           pos = line.to + 1
         }
       } else {
-        // Visual mode — replace the entire table with the interactive widget
         const widget = new TableEditorWidget(data, node.from, node.to)
         decs.push(
           Decoration.replace({ widget, block: true }).range(node.from, node.to),

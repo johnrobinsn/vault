@@ -39,15 +39,41 @@ export class TableEditorWidget extends WidgetType {
     const container = document.createElement('div')
     container.className = 'cm-table-editor'
 
-    const data = this.data
-    const from = this.from
-    const to = this.to
+    // Mutable local copy — edits happen here, committed to CM6 on blur-out
+    const local = cloneData(this.data)
+    const origFrom = this.from
+    const origTo = this.to
+    let dirty = false
 
-    // Commit a change to the CM6 document
-    const commit = (updated: TableData) => {
-      const markdown = serializeTable(updated)
-      view.dispatch({ changes: { from, to, insert: markdown } })
+    /**
+     * Commit all pending edits to the CM6 document.
+     * Only called when focus leaves the table entirely.
+     */
+    const flush = () => {
+      if (!dirty) return
+      dirty = false
+      const markdown = serializeTable(local)
+      const currentFrom = origFrom
+      const currentTo = origTo
+      view.dispatch({ changes: { from: currentFrom, to: currentTo, insert: markdown } })
     }
+
+    /**
+     * Structural change (add/remove row/col) — commit immediately since
+     * the widget needs to rebuild.
+     */
+    const commitStructural = (updated: TableData) => {
+      const markdown = serializeTable(updated)
+      view.dispatch({ changes: { from: origFrom, to: origTo, insert: markdown } })
+    }
+
+    // Detect when focus leaves the table
+    container.addEventListener('focusout', (e) => {
+      const related = (e as FocusEvent).relatedTarget as HTMLElement | null
+      // If focus moved to another element inside this container, don't flush
+      if (related && container.contains(related)) return
+      flush()
+    })
 
     // --- Toolbar ---
     const toolbar = document.createElement('div')
@@ -61,14 +87,14 @@ export class TableEditorWidget extends WidgetType {
     srcBtn.addEventListener('mousedown', (e) => {
       e.preventDefault()
       e.stopPropagation()
+      flush()
       view.dispatch({
-        selection: { anchor: from },
-        effects: enterTableSourceMode.of({ from, to }),
+        selection: { anchor: origFrom },
+        effects: enterTableSourceMode.of({ from: origFrom, to: origTo }),
       })
     })
     toolbar.appendChild(srcBtn)
 
-    // Add row button
     const addRowBtn = document.createElement('button')
     addRowBtn.type = 'button'
     addRowBtn.className = 'cm-table-btn'
@@ -76,13 +102,12 @@ export class TableEditorWidget extends WidgetType {
     addRowBtn.addEventListener('mousedown', (e) => {
       e.preventDefault()
       e.stopPropagation()
-      const updated = cloneData(data)
-      updated.rows.push(Array(data.headers.length).fill(''))
-      commit(updated)
+      const updated = cloneData(local)
+      updated.rows.push(Array(local.headers.length).fill(''))
+      commitStructural(updated)
     })
     toolbar.appendChild(addRowBtn)
 
-    // Add column button
     const addColBtn = document.createElement('button')
     addColBtn.type = 'button'
     addColBtn.className = 'cm-table-btn'
@@ -90,11 +115,11 @@ export class TableEditorWidget extends WidgetType {
     addColBtn.addEventListener('mousedown', (e) => {
       e.preventDefault()
       e.stopPropagation()
-      const updated = cloneData(data)
+      const updated = cloneData(local)
       updated.headers.push('')
       updated.alignments.push(null)
       updated.rows.forEach((r) => r.push(''))
-      commit(updated)
+      commitStructural(updated)
     })
     toolbar.appendChild(addColBtn)
 
@@ -104,14 +129,13 @@ export class TableEditorWidget extends WidgetType {
     const table = document.createElement('table')
     table.className = 'cm-table'
 
-    // Track all cells for navigation
     const allCells: HTMLTableCellElement[][] = []
 
     function createCell(
       tag: 'th' | 'td',
       value: string,
       align: Alignment,
-      onCommit: (val: string) => void,
+      onEdit: (val: string) => void,
       rowIdx: number,
       colIdx: number,
     ): HTMLTableCellElement {
@@ -125,7 +149,8 @@ export class TableEditorWidget extends WidgetType {
       cell.addEventListener('blur', () => {
         const next = cell.textContent ?? ''
         if (next !== value) {
-          onCommit(next)
+          value = next
+          onEdit(next)
         }
       })
 
@@ -133,12 +158,11 @@ export class TableEditorWidget extends WidgetType {
         if (e.key === 'Tab') {
           e.preventDefault()
           e.stopPropagation()
-          // Commit current cell
+          // Save current cell locally
           const next = cell.textContent ?? ''
-          if (next !== value) onCommit(next)
+          if (next !== value) { value = next; onEdit(next) }
 
-          // Move to next/prev cell
-          const cols = data.headers.length
+          const cols = local.headers.length
           const totalRows = allCells.length
           let r = rowIdx
           let c = colIdx
@@ -156,23 +180,16 @@ export class TableEditorWidget extends WidgetType {
           e.preventDefault()
           e.stopPropagation()
           const next = cell.textContent ?? ''
-          if (next !== value) onCommit(next)
+          if (next !== value) { value = next; onEdit(next) }
 
-          // Move to same column in next row, or create new row
           const nextRow = rowIdx + 1
           if (nextRow < allCells.length && allCells[nextRow]?.[colIdx]) {
             allCells[nextRow][colIdx].focus()
           } else {
-            // Add a new row and commit — the widget will rebuild
-            const updated = cloneData(data)
-            // Apply the current cell value first
-            if (rowIdx === 0) {
-              updated.headers[colIdx] = cell.textContent ?? ''
-            } else {
-              updated.rows[rowIdx - 1][colIdx] = cell.textContent ?? ''
-            }
-            updated.rows.push(Array(data.headers.length).fill(''))
-            commit(updated)
+            // Add new row — structural change, flush and rebuild
+            const updated = cloneData(local)
+            updated.rows.push(Array(local.headers.length).fill(''))
+            commitStructural(updated)
           }
         } else if (e.key === 'Escape') {
           e.preventDefault()
@@ -181,11 +198,13 @@ export class TableEditorWidget extends WidgetType {
         }
       })
 
-      // Context menu for row/column operations
       cell.addEventListener('contextmenu', (e) => {
         e.preventDefault()
         e.stopPropagation()
-        showContextMenu(e, rowIdx, colIdx, data, commit, container)
+        // Flush current cell
+        const next = cell.textContent ?? ''
+        if (next !== value) { value = next; onEdit(next) }
+        showContextMenu(e, rowIdx, colIdx, local, commitStructural, container)
       })
 
       return cell
@@ -195,11 +214,10 @@ export class TableEditorWidget extends WidgetType {
     const thead = document.createElement('thead')
     const headerTr = document.createElement('tr')
     const headerCells: HTMLTableCellElement[] = []
-    data.headers.forEach((h, colIdx) => {
-      const th = createCell('th', h, data.alignments[colIdx], (val) => {
-        const updated = cloneData(data)
-        updated.headers[colIdx] = val
-        commit(updated)
+    local.headers.forEach((h, colIdx) => {
+      const th = createCell('th', h, local.alignments[colIdx], (val) => {
+        local.headers[colIdx] = val
+        dirty = true
       }, 0, colIdx)
       headerCells.push(th)
       headerTr.appendChild(th)
@@ -210,15 +228,14 @@ export class TableEditorWidget extends WidgetType {
 
     // Data rows
     const tbody = document.createElement('tbody')
-    data.rows.forEach((row, rowIdx) => {
+    local.rows.forEach((row, rowIdx) => {
       const tr = document.createElement('tr')
       const rowCells: HTMLTableCellElement[] = []
       row.forEach((cellVal, colIdx) => {
-        const td = createCell('td', cellVal, data.alignments[colIdx], (val) => {
-          const updated = cloneData(data)
-          updated.rows[rowIdx][colIdx] = val
-          commit(updated)
-        }, rowIdx + 1, colIdx) // +1 because header is row 0
+        const td = createCell('td', cellVal, local.alignments[colIdx], (val) => {
+          local.rows[rowIdx][colIdx] = val
+          dirty = true
+        }, rowIdx + 1, colIdx)
         rowCells.push(td)
         tr.appendChild(td)
       })
@@ -244,7 +261,6 @@ function showContextMenu(
   commit: (updated: TableData) => void,
   container: HTMLElement,
 ) {
-  // Remove any existing context menu
   const existing = container.querySelector('.cm-table-context-menu')
   if (existing) existing.remove()
 
@@ -318,9 +334,8 @@ function showContextMenu(
     )
   }
 
-  // Alignment options
   items.push(
-    { label: '---', action: () => {} }, // separator
+    { label: '---', action: () => {} },
     {
       label: 'Align Left',
       action: () => {
@@ -367,7 +382,6 @@ function showContextMenu(
     menu.appendChild(btn)
   }
 
-  // Close on click outside
   const closeHandler = () => {
     menu.remove()
     document.removeEventListener('mousedown', closeHandler)
@@ -378,8 +392,7 @@ function showContextMenu(
 }
 
 /**
- * Small widget shown above a table in source mode with a "Visual" button
- * to switch back to the interactive table view.
+ * Widget shown above a table in source mode with a "Visual" button.
  */
 export class TableSourceToggleWidget extends WidgetType {
   constructor(
