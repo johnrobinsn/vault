@@ -184,11 +184,14 @@ export function vaultEditorTheme(): Extension {
       borderColor: 'var(--vault-accent)',
     },
 
-    // Hidden table lines (raw markdown hidden while widget is shown)
+    // Hidden table lines (raw markdown collapsed while widget is shown)
     '.cm-table-hidden-line': {
-      display: 'none !important',
-      height: '0 !important',
+      fontSize: '0',
+      lineHeight: '0',
+      height: '0',
+      padding: '0 !important',
       overflow: 'hidden',
+      color: 'transparent',
     },
 
     // Table editor

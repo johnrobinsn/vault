@@ -5,6 +5,7 @@
   import { vault } from '$lib/state/vault.svelte.js'
   import { tabs } from '$lib/state/tabs.svelte.js'
   import { activeEditor } from '$lib/state/editor.svelte.js'
+  import { scheduleDebugReport } from '$lib/debug-decorations.js'
 
   let { path }: { path: string } = $props()
 
@@ -83,6 +84,11 @@
     editor = createEditor(opts)
     activeEditor.view = editor
     activeEditor.saveNow = saveNow
+    scheduleDebugReport()
+
+    // Report on scroll too
+    const onScroll = () => scheduleDebugReport()
+    view.scrollDOM.addEventListener('scroll', onScroll)
   })
 
   onDestroy(() => {

@@ -87,11 +87,12 @@ function buildDecorations(state: import('@codemirror/state').EditorState): Decor
           pos = line.to + 1
         }
       } else {
-        // Place widget as a block element BEFORE the first table line
-        // (block widgets render between lines, not inside them)
+        // Place widget inline on the first table line (before content).
+        // The table lines collapse to 0 height via CSS, so the widget
+        // renders in their place without disrupting CM6's height map.
         const widget = new TableEditorWidget(data, node.from, node.to)
         decs.push(
-          Decoration.widget({ widget, block: true, side: -1 }).range(node.from),
+          Decoration.widget({ widget, side: -1 }).range(node.from),
         )
         // Hide all raw table lines via CSS
         for (let pos = node.from; pos <= node.to; ) {
