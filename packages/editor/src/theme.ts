@@ -188,10 +188,14 @@ export function vaultEditorTheme(): Extension {
     '.cm-table-hidden-line': {
       fontSize: '0',
       lineHeight: '0',
-      height: '0',
       padding: '0 !important',
-      overflow: 'hidden',
       color: 'transparent',
+    },
+    // But the widget inside the first hidden line must be visible
+    '.cm-table-hidden-line .cm-table-editor': {
+      fontSize: '14px',
+      lineHeight: '1.5',
+      color: 'var(--vault-text-primary)',
     },
 
     // Table editor
