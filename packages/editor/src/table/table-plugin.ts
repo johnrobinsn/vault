@@ -72,7 +72,7 @@ function buildDecorations(state: import('@codemirror/state').EditorState): Decor
       if (isInSourceMode(sourceRanges, node.from, node.to)) {
         const toggleWidget = new TableSourceToggleWidget(node.from, node.to)
         decs.push(
-          Decoration.widget({ widget: toggleWidget, block: true }).range(node.from),
+          Decoration.widget({ widget: toggleWidget }).range(node.from),
         )
         for (let pos = node.from; pos <= node.to; ) {
           const line = state.doc.lineAt(pos)
@@ -82,7 +82,7 @@ function buildDecorations(state: import('@codemirror/state').EditorState): Decor
       } else {
         const widget = new TableEditorWidget(data, node.from, node.to)
         decs.push(
-          Decoration.replace({ widget, block: true }).range(node.from, node.to),
+          Decoration.replace({ widget }).range(node.from, node.to),
         )
       }
     },
@@ -92,35 +92,77 @@ function buildDecorations(state: import('@codemirror/state').EditorState): Decor
 }
 
 /**
- * ViewPlugin that rebuilds decorations when:
- * - The document changes (and the change touches a table)
- * - The syntax tree makes progress (async parsing completes)
- * - Source mode is toggled
- *
- * Using a ViewPlugin instead of StateField so we can detect when the
- * syntax tree updates (background parsing) — StateField misses this.
+ * Check if any transaction's changes touch a table region.
  */
+function docChangeOverlapsTable(update: ViewUpdate): boolean {
+  for (const tr of update.transactions) {
+    if (!tr.docChanged) continue
+    let overlaps = false
+    tr.changes.iterChangedRanges((fromA, toA) => {
+      if (overlaps) return
+      // Check in the OLD tree
+      syntaxTree(tr.startState).iterate({
+        from: Math.max(0, fromA - 1),
+        to: Math.min(tr.startState.doc.length, toA + 1),
+        enter(node) {
+          if (node.type.name === 'Table') overlaps = true
+        },
+      })
+      // Check in the NEW tree
+      const fromB = tr.changes.mapPos(fromA)
+      const toB = tr.changes.mapPos(toA)
+      syntaxTree(update.state).iterate({
+        from: Math.max(0, fromB - 1),
+        to: Math.min(update.state.doc.length, toB + 1),
+        enter(node) {
+          if (node.type.name === 'Table') overlaps = true
+        },
+      })
+    })
+    if (overlaps) return true
+  }
+  return false
+}
+
 const tablePlugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet
-    private treeVersion = -1
+    private treeLen = -1
 
     constructor(view: EditorView) {
       this.decorations = buildDecorations(view.state)
-      this.treeVersion = syntaxTree(view.state).length
+      this.treeLen = syntaxTree(view.state).length
     }
 
     update(update: ViewUpdate) {
-      const newTreeVersion = syntaxTree(update.state).length
-      const treeGrew = newTreeVersion !== this.treeVersion
-
       const hasEffects = update.transactions.some((tr) =>
         tr.effects.some((e) => e.is(enterTableSourceMode) || e.is(exitTableSourceMode)),
       )
 
-      if (hasEffects || update.docChanged || treeGrew) {
+      // Always rebuild on source mode toggle
+      if (hasEffects) {
         this.decorations = buildDecorations(update.state)
-        this.treeVersion = newTreeVersion
+        this.treeLen = syntaxTree(update.state).length
+        return
+      }
+
+      if (update.docChanged) {
+        if (docChangeOverlapsTable(update)) {
+          // Change touches a table — full rebuild
+          this.decorations = buildDecorations(update.state)
+        } else {
+          // Change is outside tables — just map positions
+          this.decorations = this.decorations.map(update.changes)
+        }
+        this.treeLen = syntaxTree(update.state).length
+        return
+      }
+
+      // Check if the syntax tree grew (async parsing completed)
+      const newTreeLen = syntaxTree(update.state).length
+      if (newTreeLen !== this.treeLen) {
+        this.treeLen = newTreeLen
+        this.decorations = buildDecorations(update.state)
       }
     }
   },
