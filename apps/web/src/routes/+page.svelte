@@ -9,7 +9,9 @@
   import StatusBar from '$lib/components/StatusBar.svelte'
   import SearchPanel from '$lib/components/SearchPanel.svelte'
   import CommandPalette from '$lib/components/CommandPalette.svelte'
+  import ConflictDialog from '$lib/components/ConflictDialog.svelte'
   import { activeEditor } from '$lib/state/editor.svelte.js'
+  import { watcher } from '$lib/state/watcher.svelte.js'
   import { registerDefaultCommands, refreshNoteCommands } from '$lib/commands/defaults.js'
 
   let resizing = $state(false)
@@ -27,6 +29,7 @@
 
   function onVaultReady() {
     registerDefaultCommands()
+    watcher.connect()
     tabs.restore()
     if (tabs.tabs.length === 0 && vault.notes.length > 0) {
       tabs.open(vault.notes[0].path)
@@ -205,6 +208,7 @@
 
     <SearchPanel />
     <CommandPalette />
+    <ConflictDialog />
   </div>
 {/if}
 

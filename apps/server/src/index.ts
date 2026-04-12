@@ -5,6 +5,7 @@ import vaults from './routes/vaults.js'
 import files from './routes/files.js'
 import folders from './routes/folders.js'
 import search from './routes/search.js'
+import { initWatcher } from './watcher.js'
 
 const app = new Hono()
 
@@ -18,8 +19,9 @@ app.route('/api/search', search)
 app.get('/api/health', (c) => c.json({ ok: true }))
 
 const port = parseInt(process.env.PORT ?? '3001')
-
 const hostname = process.env.HOST ?? '0.0.0.0'
 
 console.log(`Vault server listening on http://${hostname}:${port}`)
-serve({ fetch: app.fetch, port, hostname })
+const server = serve({ fetch: app.fetch, port, hostname })
+
+initWatcher(server as import('node:http').Server)

@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { getActiveVault } from '../config.js'
 import { LocalFSStorage } from '../storage/local-fs.js'
+import { markRecentWrite } from '../watcher.js'
 
 const app = new Hono()
 
@@ -42,6 +43,7 @@ app.put('/*', async (c) => {
   if (!filePath) return c.json({ error: 'Path required' }, 400)
 
   const content = await c.req.text()
+  markRecentWrite(filePath)
   await storage.writeFile(filePath, content)
   return c.json({ ok: true })
 })
@@ -54,6 +56,7 @@ app.delete('/*', async (c) => {
   const filePath = c.req.path.replace('/api/files/', '')
   if (!filePath) return c.json({ error: 'Path required' }, 400)
 
+  markRecentWrite(filePath)
   await storage.deleteFile(filePath)
   return c.json({ ok: true })
 })
@@ -69,6 +72,8 @@ app.patch('/*', async (c) => {
   const body = await c.req.json<{ newPath: string }>()
   if (!body.newPath) return c.json({ error: 'newPath required' }, 400)
 
+  markRecentWrite(filePath)
+  markRecentWrite(body.newPath)
   await storage.moveFile(filePath, body.newPath)
   return c.json({ ok: true })
 })
