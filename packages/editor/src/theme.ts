@@ -153,6 +153,37 @@ export function vaultEditorTheme(): Extension {
       margin: '8px 16px',
     },
 
+    // Task checkboxes
+    '.cm-task-checkbox': {
+      appearance: 'none',
+      width: '16px',
+      height: '16px',
+      border: '2px solid var(--vault-text-muted)',
+      borderRadius: '3px',
+      verticalAlign: 'middle',
+      cursor: 'pointer',
+      position: 'relative',
+      marginRight: '4px',
+    },
+    '.cm-task-checkbox:checked': {
+      backgroundColor: 'var(--vault-accent)',
+      borderColor: 'var(--vault-accent)',
+    },
+    '.cm-task-checkbox:checked::after': {
+      content: '""',
+      position: 'absolute',
+      left: '4px',
+      top: '1px',
+      width: '4px',
+      height: '8px',
+      border: 'solid #fff',
+      borderWidth: '0 2px 2px 0',
+      transform: 'rotate(45deg)',
+    },
+    '.cm-task-checkbox:hover': {
+      borderColor: 'var(--vault-accent)',
+    },
+
     // Table editor
     '.cm-table-editor': {
       margin: '8px 16px',

@@ -4,10 +4,47 @@ import {
   type DecorationSet,
   type ViewUpdate,
   type EditorView,
+  WidgetType,
 } from '@codemirror/view'
 import { type Extension, type Range } from '@codemirror/state'
 import { syntaxTree } from '@codemirror/language'
 import type { SyntaxNode } from '@lezer/common'
+
+// --- Checkbox widget for task markers ---
+
+class CheckboxWidget extends WidgetType {
+  constructor(
+    readonly checked: boolean,
+    readonly from: number,
+    readonly to: number,
+  ) {
+    super()
+  }
+
+  eq(other: CheckboxWidget): boolean {
+    return this.checked === other.checked
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const input = document.createElement('input')
+    input.type = 'checkbox'
+    input.checked = this.checked
+    input.className = 'cm-task-checkbox'
+    input.addEventListener('mousedown', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const newMarker = this.checked ? '[ ]' : '[x]'
+      view.dispatch({
+        changes: { from: this.from, to: this.to, insert: newMarker },
+      })
+    })
+    return input
+  }
+
+  ignoreEvent(): boolean {
+    return false
+  }
+}
 
 /**
  * Single unified ViewPlugin for Obsidian-style live preview.
@@ -259,6 +296,16 @@ function buildDecorations(view: EditorView): DecorationSet {
             const line = state.doc.lineAt(nFrom)
             decs.push(Decoration.line({ class: 'cm-hr-line' }).range(line.from))
           }
+        }
+
+        // --- Task checkboxes (- [ ] / - [x]) ---
+        if (name === 'TaskMarker') {
+          const markerText = state.doc.sliceString(nFrom, nTo)
+          const checked = markerText === '[x]' || markerText === '[X]'
+          const widget = new CheckboxWidget(checked, nFrom, nTo)
+          decs.push(
+            Decoration.replace({ widget }).range(nFrom, nTo),
+          )
         }
       },
     })
