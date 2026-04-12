@@ -13,6 +13,16 @@ export interface VaultConfig {
   activeVault: string | null
 }
 
+function expandHome(p: string): string {
+  if (p.startsWith('~/') || p === '~') {
+    return path.join(os.homedir(), p.slice(1))
+  }
+  if (p.startsWith('$HOME/') || p === '$HOME') {
+    return path.join(os.homedir(), p.slice(5))
+  }
+  return p
+}
+
 const CONFIG_DIR = path.join(os.homedir(), '.vault')
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json')
 
@@ -49,7 +59,7 @@ export function addVault(name: string, vaultPath: string): VaultEntry {
     uniqueId = `${id}-${counter++}`
   }
 
-  const entry: VaultEntry = { id: uniqueId, name, path: path.resolve(vaultPath) }
+  const entry: VaultEntry = { id: uniqueId, name, path: path.resolve(expandHome(vaultPath)) }
   config.vaults.push(entry)
   if (!config.activeVault) {
     config.activeVault = entry.id
