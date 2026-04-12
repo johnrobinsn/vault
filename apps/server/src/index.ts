@@ -18,6 +18,13 @@ app.route('/api/search', search)
 
 app.get('/api/health', (c) => c.json({ ok: true }))
 
+app.post('/api/debug/editor', async (c) => {
+  const fs = await import('node:fs')
+  const data = await c.req.json()
+  fs.writeFileSync('/tmp/vault-debug.json', JSON.stringify(data, null, 2), 'utf-8')
+  return c.json({ ok: true })
+})
+
 const port = parseInt(process.env.PORT ?? '3001')
 const hostname = process.env.HOST ?? '0.0.0.0'
 

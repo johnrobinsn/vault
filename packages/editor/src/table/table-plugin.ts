@@ -15,14 +15,9 @@ interface SourceRange {
   to: number
 }
 
-/** Effect to toggle a table into source (raw markdown) mode */
 export const enterTableSourceMode = StateEffect.define<SourceRange>()
-/** Effect to toggle a table back into visual mode */
 export const exitTableSourceMode = StateEffect.define<SourceRange>()
 
-/**
- * Tracks which tables are currently in source mode.
- */
 const sourceModeTables = StateField.define<SourceRange[]>({
   create: () => [],
   update(ranges, tr) {
@@ -57,6 +52,18 @@ function isInSourceMode(ranges: SourceRange[], from: number, to: number): boolea
   return ranges.some((r) => r.from <= to && r.to >= from)
 }
 
+/**
+ * Build table decorations using LINE decorations (not replace).
+ *
+ * Strategy: instead of Decoration.replace (which breaks CM6's height map
+ * for multi-line ranges), we:
+ * 1. Hide each table line with a CSS class (display: none)
+ * 2. Place the widget as a Decoration.widget on the first line
+ *
+ * This keeps CM6's line structure intact — it still sees all lines,
+ * they're just hidden via CSS. The widget renders on top of the
+ * first hidden line.
+ */
 function buildDecorations(state: import('@codemirror/state').EditorState): DecorationSet {
   const decs: Range<Decoration>[] = []
   const sourceRanges = state.field(sourceModeTables)
@@ -80,10 +87,17 @@ function buildDecorations(state: import('@codemirror/state').EditorState): Decor
           pos = line.to + 1
         }
       } else {
+        // Place widget on the first line of the table
         const widget = new TableEditorWidget(data, node.from, node.to)
         decs.push(
-          Decoration.replace({ widget }).range(node.from, node.to),
+          Decoration.widget({ widget, side: -1 }).range(node.from),
         )
+        // Hide all table lines via CSS
+        for (let pos = node.from; pos <= node.to; ) {
+          const line = state.doc.lineAt(pos)
+          decs.push(Decoration.line({ class: 'cm-table-hidden-line' }).range(line.from))
+          pos = line.to + 1
+        }
       }
     },
   })
@@ -91,16 +105,12 @@ function buildDecorations(state: import('@codemirror/state').EditorState): Decor
   return Decoration.set(decs.sort((a, b) => a.from - b.from), true)
 }
 
-/**
- * Check if any transaction's changes touch a table region.
- */
 function docChangeOverlapsTable(update: ViewUpdate): boolean {
   for (const tr of update.transactions) {
     if (!tr.docChanged) continue
     let overlaps = false
     tr.changes.iterChangedRanges((fromA, toA) => {
       if (overlaps) return
-      // Check in the OLD tree
       syntaxTree(tr.startState).iterate({
         from: Math.max(0, fromA - 1),
         to: Math.min(tr.startState.doc.length, toA + 1),
@@ -108,7 +118,6 @@ function docChangeOverlapsTable(update: ViewUpdate): boolean {
           if (node.type.name === 'Table') overlaps = true
         },
       })
-      // Check in the NEW tree
       const fromB = tr.changes.mapPos(fromA)
       const toB = tr.changes.mapPos(toA)
       syntaxTree(update.state).iterate({
@@ -139,7 +148,6 @@ const tablePlugin = ViewPlugin.fromClass(
         tr.effects.some((e) => e.is(enterTableSourceMode) || e.is(exitTableSourceMode)),
       )
 
-      // Always rebuild on source mode toggle
       if (hasEffects) {
         this.decorations = buildDecorations(update.state)
         this.treeLen = syntaxTree(update.state).length
@@ -148,17 +156,14 @@ const tablePlugin = ViewPlugin.fromClass(
 
       if (update.docChanged) {
         if (docChangeOverlapsTable(update)) {
-          // Change touches a table — full rebuild
           this.decorations = buildDecorations(update.state)
         } else {
-          // Change is outside tables — just map positions
           this.decorations = this.decorations.map(update.changes)
         }
         this.treeLen = syntaxTree(update.state).length
         return
       }
 
-      // Check if the syntax tree grew (async parsing completed)
       const newTreeLen = syntaxTree(update.state).length
       if (newTreeLen !== this.treeLen) {
         this.treeLen = newTreeLen
@@ -169,9 +174,6 @@ const tablePlugin = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 )
 
-/**
- * Extension that provides visual table editing.
- */
 export function tableEditor(): Extension {
   return [sourceModeTables, tablePlugin]
 }

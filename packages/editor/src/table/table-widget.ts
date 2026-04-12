@@ -20,6 +20,11 @@ export class TableEditorWidget extends WidgetType {
     super()
   }
 
+  get estimatedHeight(): number {
+    // Estimate: ~36px per row (header + data rows) + 32px toolbar + 20px padding
+    return (1 + this.data.rows.length) * 36 + 52
+  }
+
   eq(other: TableEditorWidget): boolean {
     const a = this.data
     const b = other.data
