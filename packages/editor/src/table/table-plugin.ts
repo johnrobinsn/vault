@@ -1,6 +1,12 @@
 import { syntaxTree } from '@codemirror/language'
 import { type Extension, type Range, StateField, StateEffect } from '@codemirror/state'
-import { Decoration, type DecorationSet, EditorView } from '@codemirror/view'
+import {
+  Decoration,
+  type DecorationSet,
+  EditorView,
+  ViewPlugin,
+  type ViewUpdate,
+} from '@codemirror/view'
 import { parseTable } from './table-parser.js'
 import { TableEditorWidget, TableSourceToggleWidget } from './table-widget.js'
 
@@ -51,63 +57,6 @@ function isInSourceMode(ranges: SourceRange[], from: number, to: number): boolea
   return ranges.some((r) => r.from <= to && r.to >= from)
 }
 
-/**
- * Check if any changed range overlaps a table region.
- */
-function changesOverlapTable(
-  tr: import('@codemirror/state').Transaction,
-  state: import('@codemirror/state').EditorState,
-): boolean {
-  let overlaps = false
-  const tree = syntaxTree(state)
-
-  tr.changes.iterChangedRanges((fromA, toA) => {
-    if (overlaps) return
-    // Check if the changed range is inside or near a Table node
-    tree.iterate({
-      from: Math.max(0, fromA - 1),
-      to: Math.min(state.doc.length, toA + 1),
-      enter(node) {
-        if (node.name === 'Table') overlaps = true
-      },
-    })
-  })
-
-  return overlaps
-}
-
-/**
- * StateField that builds table decorations.
- * Only rebuilds when changes touch table regions or effects toggle source mode.
- */
-const tableDecorations = StateField.define<DecorationSet>({
-  create(state) {
-    return buildDecorations(state)
-  },
-  update(deco, tr) {
-    // Always rebuild on source mode toggle or reconfigure
-    if (
-      tr.reconfigured ||
-      tr.effects.some((e) => e.is(enterTableSourceMode) || e.is(exitTableSourceMode))
-    ) {
-      return buildDecorations(tr.state)
-    }
-
-    if (tr.docChanged) {
-      // Check if changes overlap a table — if so, rebuild
-      // Check against BOTH old and new state trees
-      if (changesOverlapTable(tr, tr.startState) || changesOverlapTable(tr, tr.state)) {
-        return buildDecorations(tr.state)
-      }
-      // Otherwise just map positions through the changes
-      return deco.map(tr.changes)
-    }
-
-    return deco
-  },
-  provide: (f) => EditorView.decorations.from(f),
-})
-
 function buildDecorations(state: import('@codemirror/state').EditorState): DecorationSet {
   const decs: Range<Decoration>[] = []
   const sourceRanges = state.field(sourceModeTables)
@@ -143,8 +92,44 @@ function buildDecorations(state: import('@codemirror/state').EditorState): Decor
 }
 
 /**
+ * ViewPlugin that rebuilds decorations when:
+ * - The document changes (and the change touches a table)
+ * - The syntax tree makes progress (async parsing completes)
+ * - Source mode is toggled
+ *
+ * Using a ViewPlugin instead of StateField so we can detect when the
+ * syntax tree updates (background parsing) — StateField misses this.
+ */
+const tablePlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet
+    private treeVersion = -1
+
+    constructor(view: EditorView) {
+      this.decorations = buildDecorations(view.state)
+      this.treeVersion = syntaxTree(view.state).length
+    }
+
+    update(update: ViewUpdate) {
+      const newTreeVersion = syntaxTree(update.state).length
+      const treeGrew = newTreeVersion !== this.treeVersion
+
+      const hasEffects = update.transactions.some((tr) =>
+        tr.effects.some((e) => e.is(enterTableSourceMode) || e.is(exitTableSourceMode)),
+      )
+
+      if (hasEffects || update.docChanged || treeGrew) {
+        this.decorations = buildDecorations(update.state)
+        this.treeVersion = newTreeVersion
+      }
+    }
+  },
+  { decorations: (v) => v.decorations },
+)
+
+/**
  * Extension that provides visual table editing.
  */
 export function tableEditor(): Extension {
-  return [sourceModeTables, tableDecorations]
+  return [sourceModeTables, tablePlugin]
 }
