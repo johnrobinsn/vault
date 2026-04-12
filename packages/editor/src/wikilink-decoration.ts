@@ -7,6 +7,7 @@ import {
   type EditorView,
 } from '@codemirror/view'
 import { type Extension } from '@codemirror/state'
+import { syntaxTree } from '@codemirror/language'
 
 const WIKILINK_RE = /\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]/g
 
@@ -72,6 +73,21 @@ export function wikilinkDecoration(): Extension {
         const decorations: import('@codemirror/state').Range<Decoration>[] = []
         const { state } = view
 
+        // Collect table ranges to skip (tables are handled by table plugin)
+        const tableRanges: { from: number; to: number }[] = []
+        syntaxTree(state).iterate({
+          enter(node) {
+            if (node.type.name === 'Table') {
+              tableRanges.push({ from: node.from, to: node.to })
+              return false
+            }
+          },
+        })
+
+        function isInsideTable(pos: number): boolean {
+          return tableRanges.some((r) => pos >= r.from && pos <= r.to)
+        }
+
         // Collect all cursor line numbers for multi-cursor support
         const cursorLines = new Set<number>()
         for (const range of state.selection.ranges) {
@@ -86,6 +102,7 @@ export function wikilinkDecoration(): Extension {
           while ((match = WIKILINK_RE.exec(text)) !== null) {
             const start = from + match.index
             const end = start + match[0].length
+            if (isInsideTable(start)) continue
             const target = match[1].trim()
             const display = match[2]?.trim() ?? target
             const matchLine = state.doc.lineAt(start).number

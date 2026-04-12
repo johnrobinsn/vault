@@ -102,6 +102,9 @@ function buildDecorations(view: EditorView): DecorationSet {
         const nFrom = nodeRef.from
         const nTo = nodeRef.to
 
+        // Skip tables — handled by the table editor plugin
+        if (name === 'Table') return false
+
         // --- ATX Headings ---
         if (HEADING_TYPES.has(name)) {
           const level = parseInt(name.slice(-1)) - 1
