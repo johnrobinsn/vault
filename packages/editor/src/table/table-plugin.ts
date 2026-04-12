@@ -87,12 +87,13 @@ function buildDecorations(state: import('@codemirror/state').EditorState): Decor
           pos = line.to + 1
         }
       } else {
-        // Place widget on the first line of the table
+        // Place widget as a block element BEFORE the first table line
+        // (block widgets render between lines, not inside them)
         const widget = new TableEditorWidget(data, node.from, node.to)
         decs.push(
-          Decoration.widget({ widget, side: -1 }).range(node.from),
+          Decoration.widget({ widget, block: true, side: -1 }).range(node.from),
         )
-        // Hide all table lines via CSS
+        // Hide all raw table lines via CSS
         for (let pos = node.from; pos <= node.to; ) {
           const line = state.doc.lineAt(pos)
           decs.push(Decoration.line({ class: 'cm-table-hidden-line' }).range(line.from))
