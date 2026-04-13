@@ -1,9 +1,30 @@
 <script lang="ts">
   import { tabs, type Tab } from '$lib/state/tabs.svelte.js'
+  import { activeEditor } from '$lib/state/editor.svelte.js'
 
   function handleClose(e: MouseEvent, tab: Tab) {
     e.stopPropagation()
+    tryClose(tab)
+  }
+
+  function tryClose(tab: Tab) {
+    if (tab.dirty) {
+      // If closing the active tab, offer to save
+      const choice = confirm(`"${tab.title}" has unsaved changes.\n\nPress OK to save and close, or Cancel to keep editing.`)
+      if (!choice) return
+      // Save then close
+      if (tab.id === tabs.activeId) {
+        activeEditor.saveNow?.()
+      }
+    }
     tabs.close(tab.id)
+  }
+
+  /** Exported for use by keyboard shortcut handler */
+  export function closeActiveTab() {
+    if (tabs.activeTab) {
+      tryClose(tabs.activeTab)
+    }
   }
 
   function handleClick(tab: Tab) {
@@ -13,7 +34,7 @@
   function handleMiddleClick(e: MouseEvent, tab: Tab) {
     if (e.button === 1) {
       e.preventDefault()
-      tabs.close(tab.id)
+      tryClose(tab)
     }
   }
 </script>

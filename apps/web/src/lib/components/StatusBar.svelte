@@ -12,7 +12,7 @@
     {#if activeNote}
       <span class="path">{activeNote.path}</span>
       {#if activeNote.dirty}
-        <span class="saving">Saving...</span>
+        <span class="unsaved">Unsaved</span>
       {:else}
         <span class="saved">Saved</span>
       {/if}
@@ -52,8 +52,9 @@
     color: var(--vault-text-secondary);
   }
 
-  .saving {
+  .unsaved {
     color: var(--vault-accent);
+    font-weight: 600;
   }
 
   .saved {

@@ -15,6 +15,7 @@
   import { registerDefaultCommands, refreshNoteCommands } from '$lib/commands/defaults.js'
 
   let resizing = $state(false)
+  let tabBar: ReturnType<typeof TabBar> | null = null
   let fileExplorer: ReturnType<typeof FileExplorer> | null = null
   let newVaultName = $state('')
   let newVaultPath = $state('')
@@ -65,7 +66,7 @@
       vault.createNote().then((meta) => tabs.open(meta.path))
     } else if (mod && e.key === 'w') {
       e.preventDefault()
-      if (tabs.activeTab) tabs.close(tabs.activeTab.id)
+      tabBar?.closeActiveTab()
     } else if (mod && e.key === 'Tab') {
       e.preventDefault()
       if (e.shiftKey) {
@@ -187,7 +188,7 @@
 
     <main class="main-area">
       <div class="tabbar-container">
-        <TabBar />
+        <TabBar bind:this={tabBar} />
       </div>
       <div class="editor-area">
         {#if tabs.activeTab}

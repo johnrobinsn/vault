@@ -5,40 +5,36 @@
   import { vault } from '$lib/state/vault.svelte.js'
   import { tabs } from '$lib/state/tabs.svelte.js'
   import { activeEditor } from '$lib/state/editor.svelte.js'
-  import { scheduleDebugReport } from '$lib/debug-decorations.js'
 
   let { path }: { path: string } = $props()
 
   let container: HTMLDivElement
   let editor: EditorView | null = null
-  let saveTimeout: ReturnType<typeof setTimeout> | null = null
   let currentContent = ''
+  let savedContent = ''
 
   function markDirty(dirty: boolean) {
     const tab = tabs.tabs.find((t) => t.path === path)
     if (tab) tabs.markDirty(tab.id, dirty)
   }
 
-  function debouncedSave(content: string) {
+  function onContentChange(content: string) {
     currentContent = content
-    if (saveTimeout) clearTimeout(saveTimeout)
-    markDirty(true)
-    saveTimeout = setTimeout(async () => {
-      await vault.saveNote(path, content)
-      saveTimeout = null
-      markDirty(false)
-    }, 500)
+    markDirty(content !== savedContent)
   }
 
-  /** Immediately save (used by Ctrl+S). */
+  /** Save the current note to the server. */
   export function saveNow() {
-    if (saveTimeout) {
-      clearTimeout(saveTimeout)
-      saveTimeout = null
-    }
-    if (currentContent) {
-      vault.saveNote(path, currentContent).then(() => markDirty(false))
-    }
+    if (currentContent === savedContent) return
+    vault.saveNote(path, currentContent).then(() => {
+      savedContent = currentContent
+      markDirty(false)
+    })
+  }
+
+  /** Returns true if there are unsaved changes. */
+  export function isDirty(): boolean {
+    return currentContent !== savedContent
   }
 
   async function loadContent() {
@@ -47,7 +43,6 @@
   }
 
   function handleWikiLinkClick(target: string) {
-    // Resolve the link
     const notes = vault.getNoteList()
     const normalizedTarget = target.toLowerCase()
     const match = notes.find((n) => {
@@ -59,7 +54,6 @@
     if (match) {
       tabs.open(match.path)
     } else {
-      // Create new note
       const newPath = target.endsWith('.md') ? target : target + '.md'
       vault.service.createNote(newPath, `# ${target}\n`).then(() => {
         tabs.open(newPath)
@@ -70,11 +64,12 @@
   onMount(async () => {
     const content = await loadContent()
     currentContent = content
+    savedContent = content
 
     const opts: CreateEditorOptions = {
       parent: container,
       content,
-      onChange: debouncedSave,
+      onChange: onContentChange,
       onClickWikiLink: handleWikiLinkClick,
       completionSource: {
         getNotes: () => vault.getNoteList(),
@@ -84,18 +79,9 @@
     editor = createEditor(opts)
     activeEditor.view = editor
     activeEditor.saveNow = saveNow
-    scheduleDebugReport()
-
-    // Report on scroll too
-    const onScroll = () => scheduleDebugReport()
-    view.scrollDOM.addEventListener('scroll', onScroll)
   })
 
   onDestroy(() => {
-    if (saveTimeout) {
-      clearTimeout(saveTimeout)
-      vault.saveNote(path, currentContent)
-    }
     if (editor) {
       if (activeEditor.view === editor) {
         activeEditor.view = null
