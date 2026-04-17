@@ -421,13 +421,9 @@
         ondragleave={handleDragLeave}
         ondrop={(e) => node.type === 'folder' ? handleDrop(e, node.path) : undefined}
       >
-        <span class="icon">
-          {#if node.type === 'folder'}
-            {node.expanded ? '▾' : '▸'}
-          {:else}
-            <span class="file-icon">¶</span>
-          {/if}
-        </span>
+        {#if node.type === 'folder'}
+          <span class="icon">{node.expanded ? '▾' : '▸'}</span>
+        {/if}
         <span class="name">{node.type === 'file' ? node.name.replace(/\.md$/, '') : node.name}</span>
       </button>
     {/if}
