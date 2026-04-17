@@ -59,7 +59,7 @@ class TwistieWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const span = document.createElement('span')
     span.className = `cm-twistie ${this.collapsed ? 'cm-twistie-collapsed' : 'cm-twistie-expanded'}`
-    span.textContent = this.collapsed ? '▸' : '▾'
+    span.textContent = this.collapsed ? '▶' : '▼'
     span.addEventListener('mousedown', (e) => {
       e.preventDefault()
       e.stopPropagation()

@@ -197,10 +197,13 @@ export function vaultEditorTheme(): Extension {
     // Collapsible heading twisties
     '.cm-twistie': {
       cursor: 'pointer',
-      fontSize: '10px',
+      fontSize: '14px',
       color: 'var(--vault-text-muted)',
-      marginRight: '2px',
+      marginRight: '4px',
       userSelect: 'none',
+      display: 'inline-block',
+      width: '16px',
+      textAlign: 'center',
     },
     '.cm-twistie:hover': {
       color: 'var(--vault-text-primary)',
