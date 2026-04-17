@@ -18,9 +18,15 @@
     if (tab) tabs.markDirty(tab.id, dirty)
   }
 
+  function updateCounts(text: string) {
+    activeEditor.charCount = text.length
+    activeEditor.wordCount = text.trim() ? text.trim().split(/\s+/).length : 0
+  }
+
   function onContentChange(content: string) {
     currentContent = content
     markDirty(content !== savedContent)
+    updateCounts(content)
   }
 
   /** Save the current note to the server. */
@@ -79,6 +85,7 @@
     editor = createEditor(opts)
     activeEditor.view = editor
     activeEditor.saveNow = saveNow
+    updateCounts(content)
   })
 
   onDestroy(() => {

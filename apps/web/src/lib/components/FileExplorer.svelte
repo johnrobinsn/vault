@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { vault, type FileTreeNode } from '$lib/state/vault.svelte.js'
+  import { vault, type FileTreeNode, persistExpandedState } from '$lib/state/vault.svelte.js'
   import { tabs } from '$lib/state/tabs.svelte.js'
   import { activeEditor } from '$lib/state/editor.svelte.js'
 
@@ -163,6 +163,7 @@
 
   function toggleFolder(node: FileTreeNode) {
     node.expanded = !node.expanded
+    persistExpandedState(vault.tree)
   }
 
   // --- Context menu ---

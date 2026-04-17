@@ -2,6 +2,7 @@
   import { tabs } from '$lib/state/tabs.svelte.js'
   import { vault } from '$lib/state/vault.svelte.js'
   import { ui } from '$lib/state/ui.svelte.js'
+  import { activeEditor } from '$lib/state/editor.svelte.js'
 
   let noteCount = $derived(vault.notes.length)
   let activeNote = $derived(tabs.activeTab)
@@ -19,6 +20,9 @@
     {/if}
   </span>
   <span class="status-right">
+    {#if activeNote}
+      <span class="counts">{activeEditor.wordCount} words, {activeEditor.charCount} chars</span>
+    {/if}
     <button class="theme-toggle" onclick={() => ui.toggleTheme()} title="Toggle theme">
       {ui.theme === 'dark' ? '☀' : '☾'}
     </button>
@@ -59,6 +63,10 @@
 
   .saved {
     opacity: 0.5;
+  }
+
+  .counts {
+    color: var(--vault-text-muted);
   }
 
   .theme-toggle {

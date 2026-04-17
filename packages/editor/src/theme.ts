@@ -83,6 +83,144 @@ export function vaultEditorTheme(): Extension {
       textDecoration: 'line-through',
     },
 
+    // Frontmatter property editor
+    '.cm-frontmatter-hidden': {
+      fontSize: '0',
+      lineHeight: '0',
+      height: '0',
+      padding: '0 !important',
+      overflow: 'hidden',
+      color: 'transparent',
+    },
+    '.cm-frontmatter-editor': {
+      margin: '0 16px 8px',
+      border: '1px solid var(--vault-border)',
+      borderRadius: '6px',
+      overflow: 'hidden',
+      fontSize: '13px',
+    },
+    '.cm-fm-header': {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '6px 10px',
+      backgroundColor: 'var(--vault-bg-tertiary)',
+      borderBottom: '1px solid var(--vault-border)',
+    },
+    '.cm-fm-title': {
+      fontSize: '11px',
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: '0.5px',
+      color: 'var(--vault-text-muted)',
+    },
+    '.cm-fm-actions': {
+      display: 'flex',
+      gap: '4px',
+    },
+    '.cm-fm-btn': {
+      padding: '1px 6px',
+      border: '1px solid var(--vault-border)',
+      borderRadius: '3px',
+      background: 'var(--vault-bg-secondary)',
+      color: 'var(--vault-text-secondary)',
+      fontSize: '11px',
+      cursor: 'pointer',
+      fontFamily: 'inherit',
+    },
+    '.cm-fm-btn:hover': {
+      color: 'var(--vault-text-primary)',
+    },
+    '.cm-fm-table': {
+      padding: '4px 0',
+    },
+    '.cm-fm-row': {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px',
+      padding: '2px 10px',
+    },
+    '.cm-fm-key': {
+      width: '120px',
+      flexShrink: '0',
+      padding: '3px 6px',
+      border: '1px solid transparent',
+      borderRadius: '3px',
+      background: 'transparent',
+      color: 'var(--vault-text-secondary)',
+      fontSize: '12px',
+      fontWeight: '500',
+      fontFamily: 'inherit',
+      outline: 'none',
+    },
+    '.cm-fm-key:focus': {
+      borderColor: 'var(--vault-accent)',
+      background: 'var(--vault-bg-primary)',
+    },
+    '.cm-fm-value': {
+      flex: '1',
+      padding: '3px 6px',
+      border: '1px solid transparent',
+      borderRadius: '3px',
+      background: 'transparent',
+      color: 'var(--vault-text-primary)',
+      fontSize: '12px',
+      fontFamily: 'inherit',
+      outline: 'none',
+    },
+    '.cm-fm-value:focus': {
+      borderColor: 'var(--vault-accent)',
+      background: 'var(--vault-bg-primary)',
+    },
+    '.cm-fm-checkbox': {
+      cursor: 'pointer',
+    },
+    '.cm-fm-del': {
+      padding: '0 4px',
+      border: 'none',
+      background: 'transparent',
+      color: 'var(--vault-text-muted)',
+      fontSize: '14px',
+      cursor: 'pointer',
+      opacity: '0.5',
+    },
+    '.cm-fm-del:hover': {
+      color: '#e55',
+      opacity: '1',
+    },
+    '.cm-fm-error': {
+      padding: '8px 10px',
+      color: '#e55',
+      fontSize: '12px',
+    },
+
+    // Collapsible heading twisties
+    '.cm-twistie': {
+      cursor: 'pointer',
+      fontSize: '10px',
+      color: 'var(--vault-text-muted)',
+      marginRight: '2px',
+      userSelect: 'none',
+    },
+    '.cm-twistie:hover': {
+      color: 'var(--vault-text-primary)',
+    },
+    '.cm-collapsed-line': {
+      fontSize: '0',
+      lineHeight: '0',
+      height: '0',
+      padding: '0 !important',
+      overflow: 'hidden',
+      color: 'transparent',
+    },
+
+    // Fenced code blocks
+    '.cm-line.cm-codeblock-line': {
+      fontFamily: '"SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace',
+      fontSize: '0.9em',
+      backgroundColor: 'var(--vault-bg-tertiary)',
+    },
+
     // Inline code
     '.cm-inline-code': {
       fontFamily: '"SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace',

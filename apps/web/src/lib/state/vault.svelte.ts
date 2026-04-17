@@ -199,8 +199,34 @@ class VaultState {
   }
 }
 
+/** Persist which folders are expanded so state survives refresh */
+function loadExpandedPaths(): Set<string> {
+  try {
+    const raw = localStorage.getItem('vault:expandedFolders')
+    return raw ? new Set(JSON.parse(raw)) : new Set()
+  } catch { return new Set() }
+}
+
+function saveExpandedPaths(tree: FileTreeNode[]) {
+  const paths: string[] = []
+  function collect(nodes: FileTreeNode[]) {
+    for (const n of nodes) {
+      if (n.type === 'folder' && n.expanded) paths.push(n.path)
+      if (n.children.length) collect(n.children)
+    }
+  }
+  collect(tree)
+  try { localStorage.setItem('vault:expandedFolders', JSON.stringify(paths)) } catch {}
+}
+
+// Watch for expand/collapse and persist (called from FileExplorer)
+export function persistExpandedState(tree: FileTreeNode[]) {
+  saveExpandedPaths(tree)
+}
+
 function buildTree(notes: NoteMetadata[], folders: string[]): FileTreeNode[] {
   const folderNodes = new Map<string, FileTreeNode>()
+  const expandedPaths = loadExpandedPaths()
 
   for (const f of folders) {
     if (f === '.trash') continue
@@ -211,7 +237,7 @@ function buildTree(notes: NoteMetadata[], folders: string[]): FileTreeNode[] {
       path: f,
       type: 'folder',
       children: [],
-      expanded: true,
+      expanded: expandedPaths.has(f),
     })
   }
 

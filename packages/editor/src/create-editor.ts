@@ -2,6 +2,7 @@ import { EditorView, keymap, highlightActiveLine, drawSelection } from '@codemir
 import { EditorState, type Extension } from '@codemirror/state'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
+import { languages } from '@codemirror/language-data'
 import {
   syntaxHighlighting,
   defaultHighlightStyle,
@@ -10,6 +11,8 @@ import {
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { livePreview } from './live-preview/index.js'
+import { collapsibleHeadings } from './live-preview/collapse.js'
+import { frontmatterEditor } from './frontmatter/index.js'
 import { tableEditor } from './table/index.js'
 import { wikilinkDecoration, setWikiLinkClickHandler } from './wikilink-decoration.js'
 import { vaultEditorTheme } from './theme.js'
@@ -105,9 +108,11 @@ export function createEditor({
       ...searchKeymap,
       indentWithTab,
     ]),
-    markdown({ base: markdownLanguage }),
+    markdown({ base: markdownLanguage, codeLanguages: languages }),
     syntaxHighlighting(defaultHighlightStyle),
     livePreview(),
+    collapsibleHeadings(),
+    frontmatterEditor(),
     tableEditor(),
     wikilinkDecoration(),
     updateListener,

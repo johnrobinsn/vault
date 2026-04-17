@@ -298,6 +298,15 @@ function buildDecorations(view: EditorView): DecorationSet {
           }
         }
 
+        // --- Fenced code blocks ---
+        if (name === 'FencedCode') {
+          for (let pos = nFrom; pos <= nTo; ) {
+            const line = state.doc.lineAt(pos)
+            decs.push(Decoration.line({ class: 'cm-codeblock-line' }).range(line.from))
+            pos = line.to + 1
+          }
+        }
+
         // --- Task checkboxes (- [ ] / - [x]) ---
         if (name === 'TaskMarker') {
           const markerText = state.doc.sliceString(nFrom, nTo)

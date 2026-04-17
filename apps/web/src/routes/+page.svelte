@@ -17,9 +17,8 @@
   let resizing = $state(false)
   let tabBar: ReturnType<typeof TabBar> | null = null
   let fileExplorer: ReturnType<typeof FileExplorer> | null = null
-  let newVaultName = $state('')
   let newVaultPath = $state('')
-  let showCreateForm = $state(false)
+  let showOpenForm = $state(false)
 
   onMount(async () => {
     await vault.init()
@@ -45,12 +44,16 @@
     onVaultReady()
   }
 
-  async function handleCreateVault() {
-    if (!newVaultName.trim() || !newVaultPath.trim()) return
-    await vault.createVault(newVaultName.trim(), newVaultPath.trim())
-    newVaultName = ''
+  async function handleOpenDirectory() {
+    if (!newVaultPath.trim()) return
+    const dirPath = newVaultPath.trim()
+    // Derive name from last path segment
+    const name = dirPath.split('/').filter(Boolean).pop()
+      ?? dirPath.split('\\').filter(Boolean).pop()
+      ?? 'vault'
+    await vault.createVault(name, dirPath)
     newVaultPath = ''
-    showCreateForm = false
+    showOpenForm = false
     onVaultReady()
   }
 
@@ -141,29 +144,25 @@
       {/if}
 
       <div class="landing-actions">
-        {#if showCreateForm}
+        {#if showOpenForm}
           <div class="create-form">
-            <h2 class="section-title">New Vault</h2>
-            <input
-              class="input"
-              bind:value={newVaultName}
-              placeholder="Vault name"
-              onkeydown={(e) => { if (e.key === 'Enter') handleCreateVault() }}
-            />
+            <h2 class="section-title">Open Directory</h2>
             <input
               class="input"
               bind:value={newVaultPath}
-              placeholder="Folder path (e.g. ~/notes)"
-              onkeydown={(e) => { if (e.key === 'Enter') handleCreateVault() }}
+              placeholder="Directory path (e.g. ~/notes or C:\Users\me\notes)"
+              onkeydown={(e) => { if (e.key === 'Enter') handleOpenDirectory() }}
+              autofocus
             />
+            <p class="open-hint">Enter the path to any directory. It becomes your vault — existing .md files will appear automatically.</p>
             <div class="form-buttons">
-              <button class="btn-primary" onclick={handleCreateVault}>Create</button>
-              <button class="btn-secondary" onclick={() => (showCreateForm = false)}>Cancel</button>
+              <button class="btn-primary" onclick={handleOpenDirectory}>Open</button>
+              <button class="btn-secondary" onclick={() => (showOpenForm = false)}>Cancel</button>
             </div>
           </div>
         {:else}
-          <button class="btn-primary" onclick={() => (showCreateForm = true)}>
-            Create New Vault
+          <button class="btn-primary" onclick={() => (showOpenForm = true)}>
+            Open Directory
           </button>
         {/if}
       </div>
@@ -337,6 +336,13 @@
 
   .input:focus {
     border-color: var(--vault-accent);
+  }
+
+  .open-hint {
+    font-size: 12px;
+    color: var(--vault-text-muted);
+    margin: 0;
+    line-height: 1.4;
   }
 
   .form-buttons {
