@@ -56,11 +56,11 @@ const frontmatterPlugin = ViewPlugin.fromClass(
       const fmEnd = match[0].length
       const yamlContent = match[1]
 
-      // Place widget as a block element before the first line
-      // (block: true renders between lines, not inside a hidden line)
+      // Place widget on the first line (same pattern as table widgets:
+      // inline widget inside first hidden line, CSS override makes it visible)
       const widget = new FrontmatterWidget(yamlContent, 0, fmEnd, view)
       decs.push(
-        Decoration.widget({ widget, block: true, side: -1 }).range(0),
+        Decoration.widget({ widget, side: -1 }).range(0),
       )
 
       // Hide the frontmatter lines

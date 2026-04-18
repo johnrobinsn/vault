@@ -83,14 +83,18 @@ export function vaultEditorTheme(): Extension {
       textDecoration: 'line-through',
     },
 
-    // Frontmatter property editor
+    // Frontmatter hidden lines (same pattern as cm-table-hidden-line)
     '.cm-frontmatter-hidden': {
       fontSize: '0',
       lineHeight: '0',
-      height: '0',
       padding: '0 !important',
-      overflow: 'hidden',
       color: 'transparent',
+    },
+    // Widget inside the first hidden line must be visible (same as tables)
+    '.cm-frontmatter-hidden .cm-frontmatter-editor': {
+      fontSize: '13px',
+      lineHeight: '1.5',
+      color: 'var(--vault-text-primary)',
     },
     '.cm-frontmatter-editor': {
       margin: '0 16px 8px',
