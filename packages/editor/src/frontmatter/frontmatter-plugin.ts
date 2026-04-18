@@ -11,7 +11,9 @@ import { FrontmatterWidget } from './frontmatter-widget.js'
 /** Effect to toggle between visual and source mode for frontmatter */
 export const toggleFrontmatterSource = StateEffect.define<boolean>()
 
-const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/
+// Match frontmatter: opening ---, any content, closing ---
+// The closing --- can be at EOF without a trailing newline
+const FRONTMATTER_RE = /^---[ \t]*\r?\n([\s\S]*?\n)---[ \t]*(?:\r?\n|$)/
 
 /**
  * ViewPlugin that detects YAML frontmatter at the top of the document

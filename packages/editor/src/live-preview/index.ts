@@ -119,14 +119,20 @@ function buildDecorations(view: EditorView): DecorationSet {
 
   /**
    * Check if a HorizontalRule node is actually a frontmatter delimiter.
-   * Frontmatter uses --- on line 1 (opening) and a matching --- later (closing).
+   * Line 1 `---` is always treated as frontmatter (even while typing).
+   * Any `---` within a complete frontmatter block is also suppressed.
    */
   function isFrontmatterDelimiter(st: typeof state, pos: number): boolean {
+    // --- on line 1 is always a frontmatter delimiter
+    const line = st.doc.lineAt(pos)
+    if (line.number === 1 && line.text.trim() === '---') return true
+
+    // Also suppress if inside a complete frontmatter block
     const head = st.doc.sliceString(0, Math.min(st.doc.length, 2000))
     const match = head.match(/^---\r?\n[\s\S]*?\r?\n---/)
-    if (!match) return false
-    const fmEnd = match[0].length
-    return pos < fmEnd
+    if (match && pos < match[0].length) return true
+
+    return false
   }
 
   /** Collect child nodes of a given type from a parent node. */
