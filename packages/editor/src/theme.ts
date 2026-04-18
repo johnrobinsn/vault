@@ -92,14 +92,6 @@ export function vaultEditorTheme(): Extension {
       overflow: 'hidden',
       color: 'transparent',
     },
-    // Override parent hidden-line CSS for the widget (same pattern as tables)
-    '.cm-frontmatter-hidden .cm-frontmatter-editor': {
-      fontSize: '13px',
-      lineHeight: '1.5',
-      height: 'auto',
-      overflow: 'visible',
-      color: 'var(--vault-text-primary)',
-    },
     '.cm-frontmatter-editor': {
       margin: '0 16px 8px',
       border: '1px solid var(--vault-border)',
