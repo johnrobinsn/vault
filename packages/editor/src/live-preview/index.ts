@@ -117,6 +117,18 @@ function buildDecorations(view: EditorView): DecorationSet {
     return false
   }
 
+  /**
+   * Check if a HorizontalRule node is actually a frontmatter delimiter.
+   * Frontmatter uses --- on line 1 (opening) and a matching --- later (closing).
+   */
+  function isFrontmatterDelimiter(st: typeof state, pos: number): boolean {
+    const head = st.doc.sliceString(0, Math.min(st.doc.length, 2000))
+    const match = head.match(/^---\r?\n[\s\S]*?\r?\n---/)
+    if (!match) return false
+    const fmEnd = match[0].length
+    return pos < fmEnd
+  }
+
   /** Collect child nodes of a given type from a parent node. */
   function childrenOfType(parent: SyntaxNode, typeName: string): { from: number; to: number }[] {
     const children: { from: number; to: number }[] = []
@@ -291,8 +303,10 @@ function buildDecorations(view: EditorView): DecorationSet {
         }
 
         // --- Horizontal Rule (--- or *** or ___) ---
+        // Skip if inside frontmatter region (--- delimiters at top of doc)
         if (name === 'HorizontalRule') {
-          if (!isCursorOnNode(nFrom, nTo)) {
+          const inFrontmatter = isFrontmatterDelimiter(state, nFrom)
+          if (!inFrontmatter && !isCursorOnNode(nFrom, nTo)) {
             const line = state.doc.lineAt(nFrom)
             decs.push(Decoration.line({ class: 'cm-hr-line' }).range(line.from))
           }
