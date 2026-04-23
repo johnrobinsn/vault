@@ -218,13 +218,11 @@ export class FrontmatterWidget extends WidgetType {
 
       keyInput.addEventListener('blur', commitRow)
       keyInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          // Tab to value input
-          if (valueEl instanceof HTMLInputElement && valueEl.type !== 'checkbox') {
+        if (e.key === 'Enter' || e.key === 'Tab') {
+          // Move to value input
+          if (valueEl instanceof HTMLInputElement) {
+            e.preventDefault()
             valueEl.focus()
-          } else {
-            keyInput.blur()
           }
         }
       })
@@ -235,7 +233,17 @@ export class FrontmatterWidget extends WidgetType {
         } else {
           valueEl.addEventListener('blur', commitRow)
           valueEl.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Tab' && !e.shiftKey) {
+              // Commit and create a new row
+              e.preventDefault()
+              commitRow()
+              // Defer to allow commit to settle before adding new row
+              setTimeout(() => addNewRow(), 0)
+            } else if (e.key === 'Tab' && e.shiftKey) {
+              // Shift+Tab goes back to key input
+              e.preventDefault()
+              keyInput.focus()
+            } else if (e.key === 'Enter') {
               e.preventDefault()
               valueEl.blur()
             }
@@ -244,6 +252,14 @@ export class FrontmatterWidget extends WidgetType {
       }
 
       return row
+    }
+
+    // Add a new uncommitted row and focus its key input
+    function addNewRow() {
+      const newRow = createRow({ key: '', value: '' }, false)
+      table.appendChild(newRow)
+      const newKeyInput = newRow.querySelector('.cm-fm-key') as HTMLInputElement | null
+      newKeyInput?.focus()
     }
 
     // Render existing committed properties
@@ -255,11 +271,7 @@ export class FrontmatterWidget extends WidgetType {
     addBtn.addEventListener('mousedown', (e) => {
       e.preventDefault()
       e.stopPropagation()
-      const newRow = createRow({ key: '', value: '' }, false)
-      table.appendChild(newRow)
-      // Focus the new key input
-      const keyInput = newRow.querySelector('.cm-fm-key') as HTMLInputElement | null
-      keyInput?.focus()
+      addNewRow()
     })
 
     container.appendChild(table)
