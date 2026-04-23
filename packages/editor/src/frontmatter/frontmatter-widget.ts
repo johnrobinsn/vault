@@ -36,7 +36,6 @@ export class FrontmatterWidget extends WidgetType {
         data = parsed as Record<string, PropValue>
       }
     } catch {
-      // Invalid YAML — show source mode
       container.innerHTML = '<div class="cm-fm-error">Invalid frontmatter YAML</div>'
       return container
     }
@@ -54,8 +53,8 @@ export class FrontmatterWidget extends WidgetType {
       for (const p of updatedProps) {
         if (p.key.trim()) obj[p.key.trim()] = p.value
       }
-      const yaml = stringifyYaml(obj).trim()
-      const newFm = `---\n${yaml}\n---`
+      const yaml = Object.keys(obj).length > 0 ? stringifyYaml(obj).trim() : ''
+      const newFm = yaml ? `---\n${yaml}\n---` : `---\n\n---`
       view.dispatch({ changes: { from, to, insert: newFm } })
     }
 
@@ -76,12 +75,6 @@ export class FrontmatterWidget extends WidgetType {
     addBtn.className = 'cm-fm-btn'
     addBtn.textContent = '+'
     addBtn.title = 'Add property'
-    addBtn.addEventListener('mousedown', (e) => {
-      e.preventDefault()
-      e.stopPropagation()
-      props.push({ key: '', value: '' })
-      commit(props)
-    })
     actions.appendChild(addBtn)
 
     const srcBtn = document.createElement('button')
@@ -106,8 +99,13 @@ export class FrontmatterWidget extends WidgetType {
     const table = document.createElement('div')
     table.className = 'cm-fm-table'
 
-    for (let i = 0; i < props.length; i++) {
-      const prop = props[i]
+    /**
+     * Create a row and append it to the table.
+     * If committed=true, the row represents an existing committed property.
+     * If committed=false (newly added via +), the row only commits once the user
+     * enters a valid key.
+     */
+    function createRow(prop: Property, committed: boolean): HTMLDivElement {
       const row = document.createElement('div')
       row.className = 'cm-fm-row'
 
@@ -117,86 +115,152 @@ export class FrontmatterWidget extends WidgetType {
       keyInput.className = 'cm-fm-key'
       keyInput.value = prop.key
       keyInput.placeholder = 'property'
-      keyInput.addEventListener('blur', () => {
-        const newKey = keyInput.value.trim()
-        if (newKey !== prop.key) {
-          props[i] = { ...prop, key: newKey }
-          commit(props)
-        }
-      })
-      keyInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') keyInput.blur()
-      })
       row.appendChild(keyInput)
 
-      // Value editor
+      // Value input (plain text for simplicity on new rows)
       const value = prop.value
+      let valueEl: HTMLElement
 
       if (Array.isArray(value)) {
-        // List/tags — show as comma-separated editable
         const valInput = document.createElement('input')
         valInput.type = 'text'
         valInput.className = 'cm-fm-value'
         valInput.value = value.join(', ')
         valInput.placeholder = 'value1, value2'
-        valInput.addEventListener('blur', () => {
-          const items = valInput.value.split(',').map((s) => s.trim()).filter(Boolean)
-          props[i] = { ...prop, value: items }
-          commit(props)
-        })
-        valInput.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') valInput.blur()
-        })
-        row.appendChild(valInput)
+        valueEl = valInput
       } else if (typeof value === 'boolean') {
-        // Checkbox
         const checkbox = document.createElement('input')
         checkbox.type = 'checkbox'
         checkbox.className = 'cm-fm-checkbox'
         checkbox.checked = value
-        checkbox.addEventListener('change', () => {
-          props[i] = { ...prop, value: checkbox.checked }
-          commit(props)
-        })
-        row.appendChild(checkbox)
+        valueEl = checkbox
       } else {
-        // Text/number/date — single input
         const valInput = document.createElement('input')
         valInput.type = 'text'
         valInput.className = 'cm-fm-value'
         valInput.value = value != null ? String(value) : ''
         valInput.placeholder = 'value'
-        valInput.addEventListener('blur', () => {
-          let newVal: PropValue = valInput.value
-          // Auto-detect types
-          if (newVal === 'true') newVal = true as PropValue
-          else if (newVal === 'false') newVal = false as PropValue
-          else if (/^\d+$/.test(newVal)) newVal = parseInt(newVal) as PropValue
-          props[i] = { ...prop, value: newVal }
-          commit(props)
-        })
-        valInput.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') valInput.blur()
-        })
-        row.appendChild(valInput)
+        valueEl = valInput
       }
+      row.appendChild(valueEl)
 
       // Delete button
       const delBtn = document.createElement('button')
       delBtn.type = 'button'
       delBtn.className = 'cm-fm-del'
-      delBtn.textContent = '\u00d7'
+      delBtn.textContent = '×'
       delBtn.title = 'Remove property'
       delBtn.addEventListener('mousedown', (e) => {
         e.preventDefault()
         e.stopPropagation()
-        props.splice(i, 1)
-        commit(props)
+        if (!committed) {
+          // Never committed — just remove the row from DOM
+          row.remove()
+          return
+        }
+        const idx = props.indexOf(prop)
+        if (idx !== -1) {
+          props.splice(idx, 1)
+          commit(props)
+        }
       })
       row.appendChild(delBtn)
 
-      table.appendChild(row)
+      // Handlers
+      const readValue = (): PropValue => {
+        if (valueEl instanceof HTMLInputElement) {
+          if (valueEl.type === 'checkbox') return valueEl.checked
+          const text = valueEl.value
+          if (Array.isArray(value)) {
+            return text.split(',').map((s) => s.trim()).filter(Boolean)
+          }
+          // Auto-detect basic types
+          if (text === 'true') return true
+          if (text === 'false') return false
+          if (/^\d+$/.test(text)) return parseInt(text)
+          return text
+        }
+        return ''
+      }
+
+      const commitRow = () => {
+        const newKey = keyInput.value.trim()
+        const newValue = readValue()
+
+        if (!newKey) {
+          // Empty key — if uncommitted, just do nothing (keep the row visible)
+          if (!committed) return
+          // Committed with cleared key — remove the property
+          const idx = props.indexOf(prop)
+          if (idx !== -1) {
+            props.splice(idx, 1)
+            commit(props)
+          }
+          return
+        }
+
+        if (!committed) {
+          // First commit — add to props array
+          const newProp: Property = { key: newKey, value: newValue }
+          props.push(newProp)
+          committed = true
+          commit(props)
+          return
+        }
+
+        // Subsequent edit on existing row
+        if (newKey !== prop.key || newValue !== prop.value) {
+          prop.key = newKey
+          prop.value = newValue
+          commit(props)
+        }
+      }
+
+      keyInput.addEventListener('blur', commitRow)
+      keyInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          // Tab to value input
+          if (valueEl instanceof HTMLInputElement && valueEl.type !== 'checkbox') {
+            valueEl.focus()
+          } else {
+            keyInput.blur()
+          }
+        }
+      })
+
+      if (valueEl instanceof HTMLInputElement) {
+        if (valueEl.type === 'checkbox') {
+          valueEl.addEventListener('change', commitRow)
+        } else {
+          valueEl.addEventListener('blur', commitRow)
+          valueEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              valueEl.blur()
+            }
+          })
+        }
+      }
+
+      return row
     }
+
+    // Render existing committed properties
+    for (const prop of props) {
+      table.appendChild(createRow(prop, true))
+    }
+
+    // Wire up the + button to add a new (uncommitted) row
+    addBtn.addEventListener('mousedown', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const newRow = createRow({ key: '', value: '' }, false)
+      table.appendChild(newRow)
+      // Focus the new key input
+      const keyInput = newRow.querySelector('.cm-fm-key') as HTMLInputElement | null
+      keyInput?.focus()
+    })
 
     container.appendChild(table)
     return container
