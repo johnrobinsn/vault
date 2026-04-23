@@ -271,6 +271,11 @@ export class FrontmatterWidget extends WidgetType {
     if (props.length === 0) {
       const placeholderRow = createRow({ key: '', value: '' }, false)
       table.appendChild(placeholderRow)
+      // Focus the placeholder's key input after the widget is mounted
+      requestAnimationFrame(() => {
+        const keyInput = placeholderRow.querySelector('.cm-fm-key') as HTMLInputElement | null
+        keyInput?.focus()
+      })
     }
 
     // Wire up the + button to add a new (uncommitted) row
