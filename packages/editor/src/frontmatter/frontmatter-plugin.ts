@@ -76,6 +76,63 @@ const frontmatterPlugin = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 )
 
+/**
+ * Auto-complete frontmatter: when the user types `---` on line 1
+ * (followed by Enter or just finishes the three dashes), automatically
+ * insert the closing `---` so the frontmatter widget appears immediately.
+ */
+const frontmatterAutoComplete = EditorView.updateListener.of((update) => {
+  if (!update.docChanged) return
+
+  const { state } = update
+  const doc = state.doc
+  if (doc.length === 0) return
+
+  const line1 = doc.line(1)
+  // Check if line 1 is exactly --- (just completed)
+  if (line1.text.trim() !== '---') return
+
+  // Check if there's already a closing --- somewhere in the doc
+  const head = doc.sliceString(0, Math.min(doc.length, 2000))
+  if (/^---[ \t]*\r?\n[\s\S]*?\n---/.test(head)) return
+
+  // Check that this is a fresh change — i.e., the user just typed the
+  // third dash or just created the line. We want to trigger ONCE,
+  // not on every subsequent edit.
+  let justTypedDashes = false
+  for (const tr of update.transactions) {
+    if (tr.docChanged) {
+      tr.changes.iterChanges((fromA, _toA, fromB, toB, inserted) => {
+        // If the change was inside line 1 and produced ---
+        if (fromB <= line1.to && toB >= line1.from) {
+          const insertedText = inserted.toString()
+          if (insertedText.includes('-') || insertedText.includes('\n')) {
+            justTypedDashes = true
+          }
+        }
+      })
+    }
+  }
+  if (!justTypedDashes) return
+
+  // Auto-insert `\n\n---` after the first line
+  const insertPos = line1.to
+  const insert = '\n\n---'
+  // Schedule on next tick to avoid nested dispatch
+  setTimeout(() => {
+    // Re-check state after the tick
+    const d = update.view.state.doc
+    if (d.line(1).text.trim() !== '---') return
+    if (/^---[ \t]*\r?\n[\s\S]*?\n---/.test(d.sliceString(0, Math.min(d.length, 2000)))) return
+
+    update.view.dispatch({
+      changes: { from: insertPos, insert },
+      // Place cursor on the empty line between the delimiters
+      selection: { anchor: insertPos + 1 },
+    })
+  }, 0)
+})
+
 export function frontmatterEditor(): Extension {
-  return [frontmatterPlugin]
+  return [frontmatterPlugin, frontmatterAutoComplete]
 }
