@@ -267,6 +267,12 @@ export class FrontmatterWidget extends WidgetType {
       table.appendChild(createRow(prop, true))
     }
 
+    // If empty, show a placeholder row so user can start typing immediately
+    if (props.length === 0) {
+      const placeholderRow = createRow({ key: '', value: '' }, false)
+      table.appendChild(placeholderRow)
+    }
+
     // Wire up the + button to add a new (uncommitted) row
     addBtn.addEventListener('mousedown', (e) => {
       e.preventDefault()
