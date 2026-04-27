@@ -217,6 +217,8 @@ export function vaultEditorTheme(): Extension {
       lineHeight: '0',
       height: '0',
       padding: '0 !important',
+      margin: '0 !important',
+      border: 'none !important',
       overflow: 'hidden',
       color: 'transparent',
     },
