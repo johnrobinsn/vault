@@ -12,8 +12,6 @@ import {
   type ViewUpdate,
   WidgetType,
 } from '@codemirror/view'
-import { syntaxTree } from '@codemirror/language'
-
 /** Effect to toggle collapse at a heading position */
 export const toggleCollapse = StateEffect.define<number>()
 
@@ -73,15 +71,6 @@ class TwistieWidget extends WidgetType {
   }
 }
 
-const HEADING_TYPES = new Set([
-  'ATXHeading1', 'ATXHeading2', 'ATXHeading3',
-  'ATXHeading4', 'ATXHeading5', 'ATXHeading6',
-])
-
-function headingLevel(name: string): number {
-  return parseInt(name.slice(-1))
-}
-
 /**
  * ViewPlugin that adds twisties to headings and hides collapsed sections.
  */
@@ -112,23 +101,34 @@ function buildDecorations(view: EditorView): DecorationSet {
   const decs: Range<Decoration>[] = []
   const { state } = view
   const collapsed = state.field(collapsedHeadings)
-  const tree = syntaxTree(state)
 
-  // Collect all headings with their positions and levels
+  // Collect all headings via regex scan over the full document.
+  // This is reliable even when the syntax tree is partially parsed
+  // (CM6 parses incrementally for large docs — using the tree could
+  // miss headings further down and cause the collapse range to extend
+  // too far, hiding other sections).
   const headings: { from: number; to: number; level: number; lineFrom: number }[] = []
-  tree.iterate({
-    enter(node) {
-      if (HEADING_TYPES.has(node.type.name)) {
-        const line = state.doc.lineAt(node.from)
-        headings.push({
-          from: node.from,
-          to: node.to,
-          level: headingLevel(node.type.name),
-          lineFrom: line.from,
-        })
-      }
-    },
-  })
+  const lineCount = state.doc.lines
+  let inFencedCode = false
+  for (let i = 1; i <= lineCount; i++) {
+    const line = state.doc.line(i)
+    const text = line.text
+    // Track fenced code blocks so we don't treat # inside code as headings
+    if (/^```|^~~~/.test(text)) {
+      inFencedCode = !inFencedCode
+      continue
+    }
+    if (inFencedCode) continue
+    const match = text.match(/^(#{1,6})\s/)
+    if (match) {
+      headings.push({
+        from: line.from,
+        to: line.to,
+        level: match[1].length,
+        lineFrom: line.from,
+      })
+    }
+  }
 
   for (let i = 0; i < headings.length; i++) {
     const h = headings[i]
